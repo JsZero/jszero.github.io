@@ -11676,6 +11676,9 @@ figure.highlight.foldable div.level-left {
   }
 }
 body {
+  background-image: url("/img/background.png");
+}
+body {
   counter-reset: card;
 }
 ::selection {

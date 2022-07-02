@@ -11674,3 +11674,6 @@ figure.highlight.foldable div.level-left {
     padding: 1.5rem 1rem;
   }
 }
+body {
+  background-image: url("/img/background.png");
+}
