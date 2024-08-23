@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>DolphinScheduler源码阅读日记（三）通信机制 - braoqq&#039;s blog</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="braoqq&#039;s blog"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="braoqq&#039;s blog"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="概述 DolphinScheduler的通信机制是通过Netty来实现的，在Netty上加做了一些封装和抽象     Netty简介 功能介绍  Netty 是一个基于 Java 的高性能网络应用框架，广泛用于开发高并发、低延迟的网络服务器和客户端。它提供了一组丰富的 API 和工具，简化了网络通信的开发过程，特别是在处理大量并发连接和数据流时。   * 为各种传输类型（阻塞和非阻塞socket）"><meta property="og:type" content="blog"><meta property="og:title" content="DolphinScheduler源码阅读日记（三）通信机制"><meta property="og:url" content="https://jszero.github.io/2024/08/23/DolphinScheduler%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB%E6%97%A5%E8%AE%B0%EF%BC%88%E4%B8%89%EF%BC%89%E9%80%9A%E4%BF%A1%E6%9C%BA%E5%88%B6/"><meta property="og:site_name" content="braoqq&#039;s blog"><meta property="og:description" content="概述 DolphinScheduler的通信机制是通过Netty来实现的，在Netty上加做了一些封装和抽象     Netty简介 功能介绍  Netty 是一个基于 Java 的高性能网络应用框架，广泛用于开发高并发、低延迟的网络服务器和客户端。它提供了一组丰富的 API 和工具，简化了网络通信的开发过程，特别是在处理大量并发连接和数据流时。   * 为各种传输类型（阻塞和非阻塞socket）"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://jszero.github.io/images/gallery/covers/DolphinScheduler-Logo.png"><meta property="article:published_time" content="2024-08-23T13:13:39.000Z"><meta property="article:modified_time" content="2024-08-23T15:13:44.183Z"><meta property="article:author" content="jszero"><meta property="article:tag" content="分布式"><meta property="article:tag" content="dolphinscheduler"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/images/gallery/covers/DolphinScheduler-Logo.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://jszero.github.io/2024/08/23/DolphinScheduler%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB%E6%97%A5%E8%AE%B0%EF%BC%88%E4%B8%89%EF%BC%89%E9%80%9A%E4%BF%A1%E6%9C%BA%E5%88%B6/"},"headline":"DolphinScheduler源码阅读日记（三）通信机制","image":["https://jszero.github.io/images/gallery/covers/DolphinScheduler-Logo.png"],"datePublished":"2024-08-23T13:13:39.000Z","dateModified":"2024-08-23T15:13:44.183Z","author":{"@type":"Person","name":"jszero"},"publisher":{"@type":"Organization","name":"braoqq's blog","logo":{"@type":"ImageObject","url":"https://jszero.github.io/img/logo2.svg"}},"description":"概述 DolphinScheduler的通信机制是通过Netty来实现的，在Netty上加做了一些封装和抽象     Netty简介 功能介绍  Netty 是一个基于 Java 的高性能网络应用框架，广泛用于开发高并发、低延迟的网络服务器和客户端。它提供了一组丰富的 API 和工具，简化了网络通信的开发过程，特别是在处理大量并发连接和数据流时。   * 为各种传输类型（阻塞和非阻塞socket）"}</script><link rel="canonical" href="https://jszero.github.io/2024/08/23/DolphinScheduler%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB%E6%97%A5%E8%AE%B0%EF%BC%88%E4%B8%89%EF%BC%89%E9%80%9A%E4%BF%A1%E6%9C%BA%E5%88%B6/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/atom-one-dark.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><script src="https://www.googletagmanager.com/gtag/js?id=G-78QW9ZHBDP" async></script><script>window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+    
+        gtag('config', 'G-78QW9ZHBDP');</script><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-3-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">主页</a><a class="navbar-item" href="/archives">时间轴</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/about">关于</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-6-widescreen"><div class="card"><div class="card-image"><span class="image is-7by3"><img class="fill" src="/images/gallery/covers/DolphinScheduler-Logo.png" alt="DolphinScheduler源码阅读日记（三）通信机制"></span></div><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2024-08-23T13:13:39.000Z" title="8/23/2024, 9:13:39 PM">2024-08-23</time>发表</span><span class="level-item"><time dateTime="2024-08-23T15:13:44.183Z" title="8/23/2024, 11:13:44 PM">2024-08-23</time>更新</span><span class="level-item"><a class="link-muted" href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/">调度服务</a></span><span class="level-item">6 分钟读完 (大约924个字)</span></div></div><h1 class="title is-3 is-size-4-mobile">DolphinScheduler源码阅读日记（三）通信机制</h1><div class="content"><p><img src="/images/gallery/posts-content/ds1-0.jpg" alt="系统架构图"></p>
+<h1 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h1><p>DolphinScheduler的通信机制是通过Netty来实现的，在Netty上加做了一些封装和抽象</p>
+<hr>
+<h1 id="Netty简介"><a href="#Netty简介" class="headerlink" title="Netty简介"></a>Netty简介</h1><h2 id="功能介绍"><a href="#功能介绍" class="headerlink" title="功能介绍"></a>功能介绍</h2><p><img src="/images/gallery/covers/netty-feature.png" alt="Netty功能特性"><br>Netty 是一个基于 Java 的高性能网络应用框架，广泛用于开发高并发、低延迟的网络服务器和客户端。它提供了一组丰富的 API 和工具，简化了网络通信的开发过程，特别是在处理大量并发连接和数据流时。</p>
+<ul>
+<li>为各种传输类型（阻塞和非阻塞socket）提供统一API</li>
+<li>基于灵活且可扩展的事件模型，允许明确分离关注点</li>
+<li>高度可定制的线程模型——单线程、一个或多个线程池（如 SEDA）</li>
+<li>真正的无连接数据报socket支持（自3.1版起）</li>
+</ul>
+<hr>
+<h2 id="基础概念"><a href="#基础概念" class="headerlink" title="基础概念"></a>基础概念</h2><style>
+table th:first-of-type {width: 20%;}
+table th:nth-of-type(2) {width: 80%;}
+</style>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Channel</td>
+<td>Channel 是 Netty 中用于网络通信的基本抽象，表示一个到网络套接字（Socket）的连接。它类似于 Java NIO 的 Channel，但提供了更多的高级功能。Channel 可以是 TCP、UDP 或者文件传输等不同类型的连接</td>
+</tr>
+<tr>
+<td>EventLoop</td>
+<td>EventLoop 是 Netty 中的事件处理核心。每个 EventLoop 都与一个或多个 Channel 关联，负责处理这些 Channel 上的所有 I&#x2F;O 操作，包括读写事件的调度。EventLoop 使用单线程模式，可以有效地避免线程间竞争</td>
+</tr>
+<tr>
+<td>ChannelHandler</td>
+<td>ChannelHandler 是用于处理 Channel 上的 I&#x2F;O 事件的组件。Netty 通过 ChannelHandler 实现了灵活的事件处理机制。常见的 ChannelHandler 类型包括 ChannelInboundHandler 和 ChannelOutboundHandler，分别用于处理入站和出站数据</td>
+</tr>
+<tr>
+<td>Pipeline</td>
+<td>Pipeline 是 Netty 中的一个重要概念，它是 ChannelHandler 的有序链表。所有与 Channel 相关的事件（如读、写、连接等）都会沿着 Pipeline 依次传递。开发者可以根据需要在 Pipeline 中插入不同的 ChannelHandler 来实现定制的逻辑</td>
+</tr>
+<tr>
+<td>Bootstrap</td>
+<td>Bootstrap 是用于配置和启动客户端或服务器端 Channel 的类。它简化了网络应用程序的启动过程，开发者可以通过 Bootstrap 设置相关参数，如线程池、事件处理器等</td>
+</tr>
+<tr>
+<td>ByteBuf</td>
+<td>ByteBuf 是 Netty 提供的用于高效处理字节数据的缓冲区。与 Java NIO 中的 ByteBuffer 不同，ByteBuf 提供了更多的操作方法，并且支持动态扩展、引用计数等特性，极大地提高了处理二进制数据的效率</td>
+</tr>
+<tr>
+<td>Future&amp;Promise</td>
+<td>Future 和 Promise 是 Netty 中的异步编程模型，用于表示异步操作的结果。Future 表示一个尚未完成的操作结果，而 Promise 则是可以手动设置结果的 Future。这两个接口帮助开发者处理异步任务的回调逻辑</td>
+</tr>
+<tr>
+<td>Transport</td>
+<td>Transport 是 Netty 中的底层抽象，负责实现具体的网络协议（如 TCP、UDP）的传输机制。不同的 Transport 实现可以有不同的 I&#x2F;O 模型（如 NIO、Epoll 等），适用于不同的操作系统和性能需求</td>
+</tr>
+</tbody></table>
+<h1 id="通信机制实现"><a href="#通信机制实现" class="headerlink" title="通信机制实现"></a>通信机制实现</h1><h2 id="关键类"><a href="#关键类" class="headerlink" title="关键类"></a>关键类</h2><p>在<code>MasterServer</code>、<code>WorkerServer</code>中分别都存在一个<code>RpcServer</code>和<code>RpcClient</code>，用于作为RPC的服务端和客户端<br><img src="/images/gallery/posts-content/ds1-18.png" alt="MasterServer通信相关类"></p>
+<h2 id="序列化与反序列化"><a href="#序列化与反序列化" class="headerlink" title="序列化与反序列化"></a>序列化与反序列化</h2><p><code>Messgae</code>的序列化与反序列化</p>
+<h2 id="消息的处理"><a href="#消息的处理" class="headerlink" title="消息的处理"></a>消息的处理</h2><p>如何映射到对应的Processor处理（值得借鉴）</p>
+</div><div class="article-licensing box"><div class="licensing-title"><p>DolphinScheduler源码阅读日记（三）通信机制</p><p><a href="https://jszero.github.io/2024/08/23/DolphinScheduler源码阅读日记（三）通信机制/">https://jszero.github.io/2024/08/23/DolphinScheduler源码阅读日记（三）通信机制/</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><p>jszero</p></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2024-08-23</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2024-08-23</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icons" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="icon fab fa-creative-commons"></i></a><a class="icons" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="icon fab fa-creative-commons-by"></i></a><a class="icons" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="icon fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="article-tags is-size-7 mb-4"><span class="mr-2">#</span><a class="link-muted mr-2" rel="tag" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a><a class="link-muted mr-2" rel="tag" href="/tags/dolphinscheduler/">dolphinscheduler</a></div><div class="a2a_kit a2a_kit_size_32 a2a_default_style"><a class="a2a_dd" target="_blank" rel="noopener" href="https://www.addtoany.com/share"></a><a class="a2a_button_twitter"></a><a class="a2a_button_wechat"></a><a class="a2a_button_sina_weibo"></a><a class="a2a_button_email"></a></div><script src="https://static.addtoany.com/menu/page.js" defer></script></article></div><!--!--><nav class="post-navigation mt-4 level is-mobile"><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2024/08/07/%E5%88%9B%E5%BB%BA%E7%AC%AC%E4%B8%80%E4%B8%AAAkka%E5%BA%94%E7%94%A8/"><span class="level-item">创建第一个Akka应用</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><div class="card"><div class="card-content"><h3 class="title is-5">评论</h3><div class="content" id="waline-thread"></div><script src="https://cdn.jsdelivr.net/npm/@waline/client@1.5.4/dist/Waline.min.js"></script><script>Waline({
+            el: '#waline-thread',
+            serverURL: "https://blog.comment.bravoqq.tech",
+            path: window.location.pathname,
+            lang: "zh-CN",
+            visitor: false,
+            emoji: ["//unpkg.com/@waline/emojis@1.0.1/weibo"],
+            dark: "auto",
+            meta: ["nick","mail","link"],
+            requiredMeta: [],
+            login: "enable",
+            
+            pageSize: 10,
+            
+            
+            math: false,
+            copyright: true,
+            locale: {"placeholder":"Comment here..."},
+        });</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1"><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://octodex.github.com/images/mummytocat.gif" alt="小七"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">小七</p><p class="is-size-6 is-block">不好好学习，天天睡觉</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>Beijing, China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">8</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">2</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">4</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/JsZero" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile is-multiline"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/JsZero"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="X" href="https://x.com"><i class="fab fa-twitter"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/"><i class="fas fa-rss"></i></a></div></div></div><div class="card widget" data-type="recent-posts"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2024-08-23T13:13:39.000Z">2024-08-23</time></p><p class="title"><a href="/2024/08/23/DolphinScheduler%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB%E6%97%A5%E8%AE%B0%EF%BC%88%E4%B8%89%EF%BC%89%E9%80%9A%E4%BF%A1%E6%9C%BA%E5%88%B6/">DolphinScheduler源码阅读日记（三）通信机制</a></p><p class="categories"><a href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/">调度服务</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2024-08-07T14:53:53.000Z">2024-08-07</time></p><p class="title"><a href="/2024/08/07/%E5%88%9B%E5%BB%BA%E7%AC%AC%E4%B8%80%E4%B8%AAAkka%E5%BA%94%E7%94%A8/">创建第一个Akka应用</a></p><p class="categories"><a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2024-07-28T01:51:16.000Z">2024-07-28</time></p><p class="title"><a href="/2024/07/28/DolphinScheduler%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB%E6%97%A5%E8%AE%B0%EF%BC%88%E4%BA%8C%EF%BC%89MasterServer%E5%B7%A5%E4%BD%9C%E6%B5%81%E8%B0%83%E5%BA%A6%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/">DolphinScheduler源码阅读日记（二）MasterServer工作流调度源码解析</a></p><p class="categories"><a href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/">调度服务</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2024-07-26T17:37:59.000Z">2024-07-27</time></p><p class="title"><a href="/2024/07/27/Dolphinscheduler%E6%BA%90%E7%A0%81%E9%98%85%E8%AF%BB%E6%97%A5%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA/">DolphinScheduler源码阅读日记（一）开发环境搭建</a></p><p class="categories"><a href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/">调度服务</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-07-24T14:21:29.000Z">2022-07-24</time></p><p class="title"><a href="/2022/07/24/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%8ECAP%E7%90%86%E8%AE%BA/">分布式事务与CAP理论</a></p><p class="categories"><a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/">分布式</a></p></div></article></div></div><div class="card widget" data-type="tags"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/Akka/"><span class="tag">Akka</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/CAP/"><span class="tag">CAP</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/dolphinscheduler/"><span class="tag">dolphinscheduler</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="tag">分布式</span><span class="tag">4</span></a></div></div></div></div></div><div class="card widget" data-type="categories"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile" href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="level-start"><span class="level-item">分布式</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile" href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/"><span class="level-start"><span class="level-item">调度服务</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li></ul></div></div></div><div class="card widget" data-type="archives"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile" href="/archives/2024/08/"><span class="level-start"><span class="level-item">八月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/07/"><span class="level-start"><span class="level-item">七月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2022/07/"><span class="level-start"><span class="level-item">七月 2022</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li></ul></div></div></div><div class="column-right-shadow is-hidden-widescreen is-sticky"></div></div><div class="column column-right is-4-tablet is-4-desktop is-3-widescreen is-hidden-touch is-hidden-desktop-only order-3 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#概述"><span class="level-left"><span class="level-item">1</span><span class="level-item">概述</span></span></a></li><li><a class="level is-mobile" href="#Netty简介"><span class="level-left"><span class="level-item">2</span><span class="level-item">Netty简介</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#功能介绍"><span class="level-left"><span class="level-item">2.1</span><span class="level-item">功能介绍</span></span></a></li><li><a class="level is-mobile" href="#基础概念"><span class="level-left"><span class="level-item">2.2</span><span class="level-item">基础概念</span></span></a></li></ul></li><li><a class="level is-mobile" href="#通信机制实现"><span class="level-left"><span class="level-item">3</span><span class="level-item">通信机制实现</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#关键类"><span class="level-left"><span class="level-item">3.1</span><span class="level-item">关键类</span></span></a></li><li><a class="level is-mobile" href="#序列化与反序列化"><span class="level-left"><span class="level-item">3.2</span><span class="level-item">序列化与反序列化</span></span></a></li><li><a class="level is-mobile" href="#消息的处理"><span class="level-left"><span class="level-item">3.3</span><span class="level-item">消息的处理</span></span></a></li></ul></li></ul></div></div><style>#toc .menu-list > li > a.is-active + .menu-list { display: block; }#toc .menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a><p class="is-size-7"><span>&copy; 2024 jszero</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>
