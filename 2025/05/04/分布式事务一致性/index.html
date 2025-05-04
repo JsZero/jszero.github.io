@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>分布式事务一致性 - braoqq&#039;s blog</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="braoqq&#039;s blog"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="braoqq&#039;s blog"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="分布式事务问题 定义：分库架构下无法使用单机数据库的事务能力，需要在多个服务协同操作下保证数据一致性  解决方案：强一致性协议 一个协调者，多个参与者，协同进行分布式事务处理  2PC（两阶段提交） 流程  1. 准备阶段：协调者向各个参与者发起询问，说要执行一个事务，各参与者可能回复YES、NO或超时。  2. 提交阶段：如果所有参与者都回复的是 YES，则事务协调者向所有参与者发起事务提交操作"><meta property="og:type" content="blog"><meta property="og:title" content="分布式事务一致性"><meta property="og:url" content="https://jszero.github.io/2025/05/04/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%80%E8%87%B4%E6%80%A7/"><meta property="og:site_name" content="braoqq&#039;s blog"><meta property="og:description" content="分布式事务问题 定义：分库架构下无法使用单机数据库的事务能力，需要在多个服务协同操作下保证数据一致性  解决方案：强一致性协议 一个协调者，多个参与者，协同进行分布式事务处理  2PC（两阶段提交） 流程  1. 准备阶段：协调者向各个参与者发起询问，说要执行一个事务，各参与者可能回复YES、NO或超时。  2. 提交阶段：如果所有参与者都回复的是 YES，则事务协调者向所有参与者发起事务提交操作"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://jszero.github.io/img/og_image.png"><meta property="article:published_time" content="2025-05-04T02:05:20.000Z"><meta property="article:modified_time" content="2025-05-04T08:31:13.469Z"><meta property="article:author" content="jszero"><meta property="article:tag" content="架构设计"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/img/og_image.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://jszero.github.io/2025/05/04/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%80%E8%87%B4%E6%80%A7/"},"headline":"分布式事务一致性","image":["https://jszero.github.io/img/og_image.png"],"datePublished":"2025-05-04T02:05:20.000Z","dateModified":"2025-05-04T08:31:13.469Z","author":{"@type":"Person","name":"jszero"},"publisher":{"@type":"Organization","name":"braoqq's blog","logo":{"@type":"ImageObject","url":"https://jszero.github.io/img/logo2.svg"}},"description":"分布式事务问题 定义：分库架构下无法使用单机数据库的事务能力，需要在多个服务协同操作下保证数据一致性  解决方案：强一致性协议 一个协调者，多个参与者，协同进行分布式事务处理  2PC（两阶段提交） 流程  1. 准备阶段：协调者向各个参与者发起询问，说要执行一个事务，各参与者可能回复YES、NO或超时。  2. 提交阶段：如果所有参与者都回复的是 YES，则事务协调者向所有参与者发起事务提交操作"}</script><link rel="canonical" href="https://jszero.github.io/2025/05/04/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%80%E8%87%B4%E6%80%A7/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/idea.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><script src="https://www.googletagmanager.com/gtag/js?id=G-78QW9ZHBDP" async></script><script>window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+    
+        gtag('config', 'G-78QW9ZHBDP');</script><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-3-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">主页</a><a class="navbar-item" href="/archives">时间轴</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/about">关于</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-6-widescreen"><div class="card"><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2025-05-04T02:05:20.000Z" title="5/4/2025, 10:05:20 AM">2025-05-04</time>发表</span><span class="level-item"><time dateTime="2025-05-04T08:31:13.469Z" title="5/4/2025, 4:31:13 PM">2025-05-04</time>更新</span><span class="level-item"><a class="link-muted" href="/categories/Interview/">Interview</a><span> / </span><a class="link-muted" href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></span><span class="level-item">13 分钟读完 (大约1924个字)</span></div></div><h1 class="title is-3 is-size-4-mobile">分布式事务一致性</h1><div class="content"><h1 id="分布式事务问题"><a href="#分布式事务问题" class="headerlink" title="分布式事务问题"></a>分布式事务问题</h1><p>定义：分库架构下无法使用单机数据库的事务能力，需要在多个服务协同操作下保证数据一致性</p>
+<h1 id="解决方案：强一致性协议"><a href="#解决方案：强一致性协议" class="headerlink" title="解决方案：强一致性协议"></a>解决方案：强一致性协议</h1><p>一个协调者，多个参与者，协同进行分布式事务处理</p>
+<h2 id="2PC（两阶段提交）"><a href="#2PC（两阶段提交）" class="headerlink" title="2PC（两阶段提交）"></a>2PC（两阶段提交）</h2><h3 id="流程"><a href="#流程" class="headerlink" title="流程"></a>流程</h3><ol>
+<li><strong>准备阶段</strong>：协调者向各个参与者发起询问，说要执行一个事务，各参与者可能回复YES、NO或超时。</li>
+<li><strong>提交阶段</strong>：如果所有参与者都回复的是 YES，则事务协调者向所有参与者发起事务提交操作，即Commit操作，所有参与者各自执行事务，然后发送ACK</li>
+</ol>
+<h3 id="特点"><a href="#特点" class="headerlink" title="特点"></a>特点</h3><h4 id="优点"><a href="#优点" class="headerlink" title="优点"></a>优点</h4><p>原理简单，实现方便</p>
+<h4 id="缺点"><a href="#缺点" class="headerlink" title="缺点"></a>缺点</h4><ol>
+<li><strong>同步阻塞</strong>：在阶段1，锁定资源之后，要等所有节点返回，然后才能一起进入阶段2，不能很好地应对高并发场景</li>
+<li><strong>单点问题</strong>：阶段1完成之后，如果在阶段2事务协调者宕机，则所有的参与者接收不到Commit或Rollback指令，将处于“悬而不决”状态</li>
+<li><strong>数据不一致</strong>：网络或者协调者出现问题，部分参与者收到commit请求进行提交，剩下的则没有提交</li>
+</ol>
+<h2 id="3PC（三阶段提交）"><a href="#3PC（三阶段提交）" class="headerlink" title="3PC（三阶段提交）"></a>3PC（三阶段提交）</h2><p>2PC的改进版，其将二阶段提交协议的“提交事务请求”过程一分为二，形成了由CanCommit、PreCommit和do Commit三个阶段组成的事务处理协议</p>
+<h3 id="流程-1"><a href="#流程-1" class="headerlink" title="流程"></a>流程</h3><ol>
+<li><strong>CanCommit</strong>：协调者向各个参与者发起询问，说要执行一个事务，各参与者可能回复YES、NO或超时。CanCommit阶段参与者发现超时会回滚</li>
+<li><strong>PreCommit</strong>：如果协调者收到的都是YES，则向参与者发送PreCommit请求，参与者执行预提交，并反馈给协调者ACK响应（commit或者abort）。如果有一个是NO，则向所有参与者提交abort请求。PreCommit阶段参与者发现超时会提交</li>
+<li><strong>doCommit</strong>：协调者发送请求，让参与者进行提交或者回滚。如果协调者或网络出现故障，参与者收不到指令会继续进行提交</li>
+</ol>
+<h3 id="特点-1"><a href="#特点-1" class="headerlink" title="特点"></a>特点</h3><h4 id="优点-1"><a href="#优点-1" class="headerlink" title="优点"></a>优点</h4><p>降低了参与者的阻塞范围，并且能够在出现单点故障后继续达成一致</p>
+<h4 id="缺点-1"><a href="#缺点-1" class="headerlink" title="缺点"></a>缺点</h4><p>参与者收到PreCommit之后，如果发生网络故障，协调者发送的，可能出现一部分提交一部分回滚的情况，即数据不一致</p>
+<h3 id="2PC-vs-3PC"><a href="#2PC-vs-3PC" class="headerlink" title="2PC vs 3PC"></a>2PC vs 3PC</h3><blockquote>
+<p>Q：引入 PreCommit 的作用是什么？<br>A：</p>
+<ol>
+<li>明确状态：避免歧义，所有参与者收到 pre-commit 后，进入一个明确的中间状态（已准备提交但尚未提交）。如果此时协调者宕机，参与者就知道协调者已经决定提交了，只是还没发出最终指令</li>
+<li>非阻塞：所有阶段都有超时机制，避免了像 2PC 那样“等死”的情况，即使协调者崩溃，参与者也不会一直阻塞。</li>
+</ol>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>2PC（Two-Phase Commit）</th>
+<th>3PC（Three-Phase Commit）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>阶段数</td>
+<td>2（Prepare + Commit）</td>
+<td>3（CanCommit + PreCommit + DoCommit）</td>
+</tr>
+<tr>
+<td>是否阻塞</td>
+<td>是（参与者会阻塞等待协调者）</td>
+<td>否（超时后可自行决定）</td>
+</tr>
+<tr>
+<td>容错性</td>
+<td>低（协调者崩溃会导致阻塞）</td>
+<td>较高（通过超时和中间状态降低阻塞）</td>
+</tr>
+<tr>
+<td>数据一致性</td>
+<td>强一致</td>
+<td>强一致（但牺牲一定性能）</td>
+</tr>
+<tr>
+<td>复杂度</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>是否存在协调者单点风险</td>
+<td>是</td>
+<td>是（仍需解决）</td>
+</tr>
+</tbody></table>
+<h1 id="解决方案：最终一致性"><a href="#解决方案：最终一致性" class="headerlink" title="解决方案：最终一致性"></a>解决方案：最终一致性</h1><p>一般的思路是通过消息中间件来实现“最终一致性”。系统A收到用户的转账请求，系统A先自己扣钱，也就是更新DB1；然后通过消息中间件给系统B发送一条加钱的消息，系统B收到此消息，对自己的账号进行加钱，也就是更新DB2。但是这里在系统A操作时，需要更新DB1并发送消息，这里面存在一个技术问题</p>
+<ul>
+<li>如果是先发消息后改DB，可能会发生消息发送成功DB修改失败，即DB1扣钱失败DB2加钱成功</li>
+<li>如果是先改DB后发消息，可能会发生DB修改成功但是消息发送失败，即DB1扣钱成功DB2加钱失败<br>上述两种情况都是不符合预期的，有人说可以将发送mafka消息和更新DB1的操作放到一个事务里面，这样看似是ok的但实际上是有问题的</li>
+<li>发送消息失败无法判断是消息中间件没有收到消息，还是返回响应的时候失败</li>
+<li>把网络调用放在数据库事务里面，可能会因为网络的延时导致数据库长事务，严重的会阻塞整个数据库</li>
+</ul>
+<h2 id="基于业务架构设计实现"><a href="#基于业务架构设计实现" class="headerlink" title="基于业务架构设计实现"></a>基于业务架构设计实现</h2><ol>
+<li>系统A增加一张消息表，系统A不再直接给消息中间件发送消息，而是把消息写入到这张消息表中。把DB1的扣钱操作（表1）和写入消息表（表2）这两个操作放在一个数据库事务里，保证两者的原子性</li>
+<li>系统A准备一个后台程序，源源不断地把消息表中的消息传送给消息中间件。如果失败了，也不断尝试重传。保证消息至少传递一次</li>
+<li>系统B消费消息队列中的消息，做DB2的数据操作<ul>
+<li>消息丢失问题：如果处理到一半宕机则消息可能会丢失，所以需要消费完再ack，但这样可能会导致重复消费</li>
+<li>消息重复问题：增加判重表，记录处理过的消息，这样就能实现幂等。或者业务逻辑可以判重也可以</li>
+</ul>
+</li>
+</ol>
+<h2 id="基于消息队列事务实现"><a href="#基于消息队列事务实现" class="headerlink" title="基于消息队列事务实现"></a>基于消息队列事务实现</h2><p>RocketMQ有事务消息的概念。RocketMQ不是提供一个单一的“发送”接又，而是把消息的发送拆成了两个阶段，Prepare阶段(消息预发送)和Confirm阶段(确认发送)。</p>
+<ol>
+<li>系统A调用Prepare接又，预发送消息。此时消息保存在消息中间件里，但消息中间件不会把消息给消费方消费，消息只是暂存在那。</li>
+<li>系统A更新数据库，进行扣钱操作。 步骤3:系统A调用Comfirm接又，确认发送消息。此时消息中间件才会把消息给消费方进行消费<br>这里有两种异常场景，</li>
+<li>步骤1、2成功，3失败或者超时</li>
+<li>步骤1成功，步骤2失败或者超时。步骤3不会执行<br>这些问题可以通过RocketMQ的机制实现，RocketMQ会定期(默认是1min)扫描所有的预发送但还没有确认的消息，回调给发送方，询问这条消息是要发出去，还是取消。发送方可以自行根据业务状态回复</li>
+</ol>
+<h2 id="TCC"><a href="#TCC" class="headerlink" title="TCC"></a>TCC</h2><h2 id="事务状态表-调用方重试-接收方幂等"><a href="#事务状态表-调用方重试-接收方幂等" class="headerlink" title="事务状态表+调用方重试+接收方幂等"></a>事务状态表+调用方重试+接收方幂等</h2><h2 id="对账"><a href="#对账" class="headerlink" title="对账"></a>对账</h2></div><div class="article-licensing box"><div class="licensing-title"><p>分布式事务一致性</p><p><a href="https://jszero.github.io/2025/05/04/分布式事务一致性/">https://jszero.github.io/2025/05/04/分布式事务一致性/</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><p>jszero</p></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2025-05-04</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2025-05-04</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icons" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="icon fab fa-creative-commons"></i></a><a class="icons" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="icon fab fa-creative-commons-by"></i></a><a class="icons" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="icon fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="article-tags is-size-7 mb-4"><span class="mr-2">#</span><a class="link-muted mr-2" rel="tag" href="/tags/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></div><div class="a2a_kit a2a_kit_size_32 a2a_default_style"><a class="a2a_dd" target="_blank" rel="noopener" href="https://www.addtoany.com/share"></a><a class="a2a_button_twitter"></a><a class="a2a_button_wechat"></a><a class="a2a_button_sina_weibo"></a><a class="a2a_button_email"></a></div><script src="https://static.addtoany.com/menu/page.js" defer></script></article></div><!--!--><nav class="post-navigation mt-4 level is-mobile"><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2025/05/03/%E9%AB%98%E5%8F%AF%E7%94%A8%E5%92%8C%E7%A8%B3%E5%AE%9A%E6%80%A7/"><span class="level-item">高可用和稳定性</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><div class="card"><div class="card-content"><h3 class="title is-5">评论</h3><div class="content" id="waline-thread"></div><script src="https://cdn.jsdelivr.net/npm/@waline/client@1.5.4/dist/Waline.min.js"></script><script>Waline({
+            el: '#waline-thread',
+            serverURL: "https://blog.comment.bravoqq.tech",
+            path: window.location.pathname,
+            lang: "zh-CN",
+            visitor: false,
+            emoji: ["//unpkg.com/@waline/emojis@1.0.1/weibo"],
+            dark: "auto",
+            meta: ["nick","mail","link"],
+            requiredMeta: [],
+            login: "enable",
+            
+            pageSize: 10,
+            
+            
+            math: false,
+            copyright: true,
+            locale: {"placeholder":"Comment here..."},
+        });</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1"><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://octodex.github.com/images/mummytocat.gif" alt="小七"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">小七</p><p class="is-size-6 is-block">你就学吧，总能学会的</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>Beijing, China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">19</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">11</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">10</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/JsZero" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile is-multiline"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/JsZero"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="X" href="https://x.com"><i class="fab fa-twitter"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/"><i class="fas fa-rss"></i></a></div></div></div><div class="card widget" data-type="categories"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile" href="/categories/Database/"><span class="level-start"><span class="level-item">Database</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/"><span class="level-start"><span class="level-item">Interview</span></span><span class="level-end"><span class="level-item tag">11</span></span></a><ul><li><a class="level is-mobile" href="/categories/Interview/0-%E7%9F%A5%E8%AF%86%E6%8B%93%E6%89%91/"><span class="level-start"><span class="level-item">0.知识拓扑</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="level-start"><span class="level-item">分布式</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="level-start"><span class="level-item">操作系统</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="level-start"><span class="level-item">架构设计</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/"><span class="level-start"><span class="level-item">编程语言</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="level-start"><span class="level-item">项目回顾</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/"><span class="level-start"><span class="level-item">🍺 Code Interview</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li></ul></li><li><a class="level is-mobile" href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="level-start"><span class="level-item">分布式</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/"><span class="level-start"><span class="level-item">调度服务</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li></ul></div></div></div><div class="card widget" data-type="tags"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/Akka/"><span class="tag">Akka</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/CAP/"><span class="tag">CAP</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/DolphinScheduler/"><span class="tag">DolphinScheduler</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/MySQL/"><span class="tag">MySQL</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/leetcode/"><span class="tag">leetcode</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="tag">分布式</span><span class="tag">4</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%A4%9A%E7%BA%BF%E7%A8%8B/"><span class="tag">多线程</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="tag">操作系统</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="tag">架构设计</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="tag">项目回顾</span><span class="tag">1</span></a></div></div></div></div></div><div class="card widget" data-type="archives"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile" href="/archives/2025/05/"><span class="level-start"><span class="level-item">五月 2025</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/04/"><span class="level-start"><span class="level-item">四月 2025</span></span><span class="level-end"><span class="level-item tag">5</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/03/"><span class="level-start"><span class="level-item">三月 2025</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/02/"><span class="level-start"><span class="level-item">二月 2025</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/08/"><span class="level-start"><span class="level-item">八月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/07/"><span class="level-start"><span class="level-item">七月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2022/07/"><span class="level-start"><span class="level-item">七月 2022</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li></ul></div></div></div><div class="card widget" data-type="recent-posts"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-04T02:05:20.000Z">2025-05-04</time></p><p class="title"><a href="/2025/05/04/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%80%E8%87%B4%E6%80%A7/">分布式事务一致性</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-03T07:20:15.000Z">2025-05-03</time></p><p class="title"><a href="/2025/05/03/%E9%AB%98%E5%8F%AF%E7%94%A8%E5%92%8C%E7%A8%B3%E5%AE%9A%E6%80%A7/">高可用和稳定性</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-04-27T02:26:50.000Z">2025-04-27</time></p><p class="title"><a href="/2025/04/27/leetcode-45-%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8FII/">leetcode 45.跳跃游戏II</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-04-20T02:47:00.000Z">2025-04-20</time></p><p class="title"><a href="/2025/04/20/leetcode-31-%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/">leetcode 31. 下一个排列</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-04-19T15:57:18.000Z">2025-04-19</time></p><p class="title"><a href="/2025/04/19/leetcode-33-%E5%9C%A8%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84%E4%B8%AD%E6%90%9C%E7%B4%A2/">leetcode 33.在旋转排序数组中搜索</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article></div></div><div class="column-right-shadow is-hidden-widescreen is-sticky"></div></div><div class="column column-right is-4-tablet is-4-desktop is-3-widescreen is-hidden-touch is-hidden-desktop-only order-3 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#分布式事务问题"><span class="level-left"><span class="level-item">1</span><span class="level-item">分布式事务问题</span></span></a></li><li><a class="level is-mobile" href="#解决方案：强一致性协议"><span class="level-left"><span class="level-item">2</span><span class="level-item">解决方案：强一致性协议</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#2PC（两阶段提交）"><span class="level-left"><span class="level-item">2.1</span><span class="level-item">2PC（两阶段提交）</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#流程"><span class="level-left"><span class="level-item">2.1.1</span><span class="level-item">流程</span></span></a></li><li><a class="level is-mobile" href="#特点"><span class="level-left"><span class="level-item">2.1.2</span><span class="level-item">特点</span></span></a></li></ul></li><li><a class="level is-mobile" href="#3PC（三阶段提交）"><span class="level-left"><span class="level-item">2.2</span><span class="level-item">3PC（三阶段提交）</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#流程-1"><span class="level-left"><span class="level-item">2.2.1</span><span class="level-item">流程</span></span></a></li><li><a class="level is-mobile" href="#特点-1"><span class="level-left"><span class="level-item">2.2.2</span><span class="level-item">特点</span></span></a></li><li><a class="level is-mobile" href="#2PC-vs-3PC"><span class="level-left"><span class="level-item">2.2.3</span><span class="level-item">2PC vs 3PC</span></span></a></li></ul></li></ul></li><li><a class="level is-mobile" href="#解决方案：最终一致性"><span class="level-left"><span class="level-item">3</span><span class="level-item">解决方案：最终一致性</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#基于业务架构设计实现"><span class="level-left"><span class="level-item">3.1</span><span class="level-item">基于业务架构设计实现</span></span></a></li><li><a class="level is-mobile" href="#基于消息队列事务实现"><span class="level-left"><span class="level-item">3.2</span><span class="level-item">基于消息队列事务实现</span></span></a></li><li><a class="level is-mobile" href="#TCC"><span class="level-left"><span class="level-item">3.3</span><span class="level-item">TCC</span></span></a></li><li><a class="level is-mobile" href="#事务状态表-调用方重试-接收方幂等"><span class="level-left"><span class="level-item">3.4</span><span class="level-item">事务状态表+调用方重试+接收方幂等</span></span></a></li><li><a class="level is-mobile" href="#对账"><span class="level-left"><span class="level-item">3.5</span><span class="level-item">对账</span></span></a></li></ul></li></ul></div></div><style>#toc .menu-list > li > a.is-active + .menu-list { display: block; }#toc .menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a><p class="is-size-7"><span>&copy; 2025 jszero</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>

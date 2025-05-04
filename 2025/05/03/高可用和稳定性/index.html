@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>高可用和稳定性 - braoqq&#039;s blog</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="braoqq&#039;s blog"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="braoqq&#039;s blog"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="多副本  1. 本地缓存多副本  2. Redis多副本  3. MySQL多副本  4. 消息中间件多副本  隔离、限流、熔断和降级 隔离 定义：将系统或资源分割开，在系统发生故障时能限定传播范围和影响范围，即发生故障后不会出现滚雪球效应   1. 数据隔离  2. 机器隔离  3. 线程池隔离：为了某个rpc接口较慢导致线程池打满，为不同的rpc接口提供不同的线程池  4. 信号量隔离：为了解"><meta property="og:type" content="blog"><meta property="og:title" content="高可用和稳定性"><meta property="og:url" content="https://jszero.github.io/2025/05/03/%E9%AB%98%E5%8F%AF%E7%94%A8%E5%92%8C%E7%A8%B3%E5%AE%9A%E6%80%A7/"><meta property="og:site_name" content="braoqq&#039;s blog"><meta property="og:description" content="多副本  1. 本地缓存多副本  2. Redis多副本  3. MySQL多副本  4. 消息中间件多副本  隔离、限流、熔断和降级 隔离 定义：将系统或资源分割开，在系统发生故障时能限定传播范围和影响范围，即发生故障后不会出现滚雪球效应   1. 数据隔离  2. 机器隔离  3. 线程池隔离：为了某个rpc接口较慢导致线程池打满，为不同的rpc接口提供不同的线程池  4. 信号量隔离：为了解"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://jszero.github.io/img/og_image.png"><meta property="article:published_time" content="2025-05-03T07:20:15.000Z"><meta property="article:modified_time" content="2025-05-04T02:06:20.125Z"><meta property="article:author" content="jszero"><meta property="article:tag" content="架构设计"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/img/og_image.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://jszero.github.io/2025/05/03/%E9%AB%98%E5%8F%AF%E7%94%A8%E5%92%8C%E7%A8%B3%E5%AE%9A%E6%80%A7/"},"headline":"高可用和稳定性","image":["https://jszero.github.io/img/og_image.png"],"datePublished":"2025-05-03T07:20:15.000Z","dateModified":"2025-05-04T02:06:20.125Z","author":{"@type":"Person","name":"jszero"},"publisher":{"@type":"Organization","name":"braoqq's blog","logo":{"@type":"ImageObject","url":"https://jszero.github.io/img/logo2.svg"}},"description":"多副本  1. 本地缓存多副本  2. Redis多副本  3. MySQL多副本  4. 消息中间件多副本  隔离、限流、熔断和降级 隔离 定义：将系统或资源分割开，在系统发生故障时能限定传播范围和影响范围，即发生故障后不会出现滚雪球效应   1. 数据隔离  2. 机器隔离  3. 线程池隔离：为了某个rpc接口较慢导致线程池打满，为不同的rpc接口提供不同的线程池  4. 信号量隔离：为了解"}</script><link rel="canonical" href="https://jszero.github.io/2025/05/03/%E9%AB%98%E5%8F%AF%E7%94%A8%E5%92%8C%E7%A8%B3%E5%AE%9A%E6%80%A7/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/idea.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><script src="https://www.googletagmanager.com/gtag/js?id=G-78QW9ZHBDP" async></script><script>window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+    
+        gtag('config', 'G-78QW9ZHBDP');</script><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-3-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">主页</a><a class="navbar-item" href="/archives">时间轴</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/about">关于</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-6-widescreen"><div class="card"><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2025-05-03T07:20:15.000Z" title="5/3/2025, 3:20:15 PM">2025-05-03</time>发表</span><span class="level-item"><time dateTime="2025-05-04T02:06:20.125Z" title="5/4/2025, 10:06:20 AM">2025-05-04</time>更新</span><span class="level-item"><a class="link-muted" href="/categories/Interview/">Interview</a><span> / </span><a class="link-muted" href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></span><span class="level-item">9 分钟读完 (大约1277个字)</span></div></div><h1 class="title is-3 is-size-4-mobile">高可用和稳定性</h1><div class="content"><h1 id="多副本"><a href="#多副本" class="headerlink" title="多副本"></a>多副本</h1><ol>
+<li>本地缓存多副本</li>
+<li>Redis多副本</li>
+<li>MySQL多副本</li>
+<li>消息中间件多副本</li>
+</ol>
+<h1 id="隔离、限流、熔断和降级"><a href="#隔离、限流、熔断和降级" class="headerlink" title="隔离、限流、熔断和降级"></a>隔离、限流、熔断和降级</h1><h2 id="隔离"><a href="#隔离" class="headerlink" title="隔离"></a>隔离</h2><p><strong>定义</strong>：将系统或资源分割开，在系统发生故障时能限定传播范围和影响范围，即发生故障后不会出现滚雪球效应</p>
+<ol>
+<li>数据隔离</li>
+<li>机器隔离</li>
+<li>线程池隔离：为了某个rpc接口较慢导致线程池打满，为不同的rpc接口提供不同的线程池</li>
+<li>信号量隔离：为了解决线程数过多导致上下文切换开销的大问题，共用线程池但是取线程之前需要获得信号量，信号量达到阈值则无法获取线程</li>
+</ol>
+<h2 id="限流"><a href="#限流" class="headerlink" title="限流"></a>限流</h2><p><strong>定义</strong>：系统的处理能力不能应对外部请求的涂增流量时，为了不让系统崩溃（如线程池资源耗尽），需要采取限流的措施</p>
+<h3 id="方式"><a href="#方式" class="headerlink" title="方式"></a>方式</h3><ol>
+<li>技术层面的限流<br><strong>限制并发数</strong>：比如数据库连接池、线程池、Nginx的limit_conn模块<br><strong>限制速率</strong>：比如Guava的RateLimiter、Nginx的limit_req模块</li>
+<li>业务层面的限流<br>如在秒杀系统中，一个商品的库存只有100件，现在有2万人抢购，没有必要放2万个人进来，只需要放前500个人进来，后面的人直接返回已售完即可。具体实现上，有团队使用Redis，也有团队直接基于Nginx+Lua脚本来实现</li>
+</ol>
+<h3 id="限流算法"><a href="#限流算法" class="headerlink" title="限流算法"></a>限流算法</h3><h4 id="并发数限制"><a href="#并发数限制" class="headerlink" title="并发数限制"></a>并发数限制</h4><p>限制并发数的计算原理很简单，系统只需要维护正在使用的资源数或空闲数，比如数据库的连接数、线程池的线程数</p>
+<h4 id="速率限制"><a href="#速率限制" class="headerlink" title="速率限制"></a>速率限制</h4><ol>
+<li><strong>固定窗口计数</strong></li>
+</ol>
+<ul>
+<li>方式：<ul>
+<li>在固定时间区间内统计请求数量</li>
+<li>达到阈值后拒绝请求</li>
+</ul>
+</li>
+<li>缺点：<ul>
+<li>临界点爆发问题，0.99秒1000个请求，1.01秒1000个请求</li>
+<li>突刺，0.1处理1000个请求，剩下0.9秒无法处理请求</li>
+</ul>
+</li>
+</ul>
+<ol start="2">
+<li><strong>滑动窗口计数</strong></li>
+</ol>
+<ul>
+<li>方式：<ul>
+<li>将时间窗口进一步细分为小块（比如1秒-&gt;10个0.1秒）</li>
+<li>每个小窗口分别计数，滑动加总</li>
+</ul>
+</li>
+<li>优点：缓解临界爆发，流量统计更平滑</li>
+<li>缺点：缓解临界爆发，不解决</li>
+</ul>
+<ol start="3">
+<li><strong>滑动时间窗口</strong></li>
+</ol>
+<ul>
+<li>方式：<ul>
+<li>精确记录每次请求的时间戳</li>
+<li>每次检查当前时间，除去超过时间范围的请求计数，计算窗口内真实数量</li>
+</ul>
+</li>
+<li>缺点：内存占用高，不适合高并发场景</li>
+</ul>
+<ol start="4">
+<li><strong>漏桶算法</strong></li>
+</ol>
+<ul>
+<li>方式：<ul>
+<li>请求以仁义速度进入系统，被积压放入桶中，即入水速度任意</li>
+<li>请求按固定速率处理（出水速率恒定），即出水速度恒定</li>
+<li>请求可以缓冲排队，溢出直接丢弃</li>
+</ul>
+</li>
+<li>特点：平滑流量，不能积压太多突发流量</li>
+</ul>
+<ol start="5">
+<li><strong>令牌桶算法</strong></li>
+</ol>
+<ul>
+<li>方式：<ul>
+<li>定时向桶内放入令牌（以固定速率）</li>
+<li>每个请求拿一个令牌，拿到才能处理，没有就拒绝或者排队</li>
+</ul>
+</li>
+<li>特点：可以应对突发流量</li>
+</ul>
+<p><strong>漏桶算法 vs 令牌桶算法</strong></p>
+<table>
+<thead>
+<tr>
+<th>-</th>
+<th>漏桶算法</th>
+<th>令牌桶算法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>特点</td>
+<td>流出速率保持恒定</td>
+<td>流入速率保持恒定</td>
+</tr>
+<tr>
+<td>用途</td>
+<td>类似消息队列，起到了削峰的作用，平滑了突发流入速率</td>
+<td>限制的是平均流入速率，可能一段时间没有请求令牌累积，突发流量一瞬间取令牌处理</td>
+</tr>
+</tbody></table>
+<h2 id="熔断"><a href="#熔断" class="headerlink" title="熔断"></a>熔断</h2><p><strong>定义</strong>：当某个服务持续失败或响应异常，系统主动“断开”对它的调用一段时间，避免整个系统雪崩</p>
+<h3 id="根据请求失败率做熔断"><a href="#根据请求失败率做熔断" class="headerlink" title="根据请求失败率做熔断"></a>根据请求失败率做熔断</h3><p>对于客户端调用的某个服务，如果服务在短时间内大量超时或抛错，则客户端直接开启熔断，也就是不再调用此服务。然后过一段时间，再把熔断打开，如果还不行，则继续开启熔断。这也正是经常提到的“快速失败（Fail Fast）”原则”</p>
+<h3 id="根据请求响应时间做熔断"><a href="#根据请求响应时间做熔断" class="headerlink" title="根据请求响应时间做熔断"></a>根据请求响应时间做熔断</h3><p>Sentinel 的思路根据请求响应时间做熔断。当资源的平均响应时间超过阈值后，资源进入准降级状态。接下来如果持续进入5个请求，且它们的RT 持续超过该阈值，那么在接下来的时间窗口内，对这个方法的调用都会自动地返回</p>
+<h2 id="降级"><a href="#降级" class="headerlink" title="降级"></a>降级</h2><p><strong>定义</strong>：降级是一种兜底方案，是在系统出故障之后的一个尽力而为的措施。比如电商推荐系统，当宕机时，可以为首页准备一个非个性化的商品列表，甚至一个静态的商品列表</p>
+</div><div class="article-licensing box"><div class="licensing-title"><p>高可用和稳定性</p><p><a href="https://jszero.github.io/2025/05/03/高可用和稳定性/">https://jszero.github.io/2025/05/03/高可用和稳定性/</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><p>jszero</p></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2025-05-03</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2025-05-04</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icons" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="icon fab fa-creative-commons"></i></a><a class="icons" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="icon fab fa-creative-commons-by"></i></a><a class="icons" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="icon fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="article-tags is-size-7 mb-4"><span class="mr-2">#</span><a class="link-muted mr-2" rel="tag" href="/tags/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></div><div class="a2a_kit a2a_kit_size_32 a2a_default_style"><a class="a2a_dd" target="_blank" rel="noopener" href="https://www.addtoany.com/share"></a><a class="a2a_button_twitter"></a><a class="a2a_button_wechat"></a><a class="a2a_button_sina_weibo"></a><a class="a2a_button_email"></a></div><script src="https://static.addtoany.com/menu/page.js" defer></script></article></div><!--!--><nav class="post-navigation mt-4 level is-mobile"><div class="level-start"><a class="article-nav-prev level level-item link-muted" href="/2025/05/04/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%80%E8%87%B4%E6%80%A7/"><i class="level-item fas fa-chevron-left"></i><span class="level-item">分布式事务一致性</span></a></div><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2025/04/27/leetcode-45-%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8FII/"><span class="level-item">leetcode 45.跳跃游戏II</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><div class="card"><div class="card-content"><h3 class="title is-5">评论</h3><div class="content" id="waline-thread"></div><script src="https://cdn.jsdelivr.net/npm/@waline/client@1.5.4/dist/Waline.min.js"></script><script>Waline({
+            el: '#waline-thread',
+            serverURL: "https://blog.comment.bravoqq.tech",
+            path: window.location.pathname,
+            lang: "zh-CN",
+            visitor: false,
+            emoji: ["//unpkg.com/@waline/emojis@1.0.1/weibo"],
+            dark: "auto",
+            meta: ["nick","mail","link"],
+            requiredMeta: [],
+            login: "enable",
+            
+            pageSize: 10,
+            
+            
+            math: false,
+            copyright: true,
+            locale: {"placeholder":"Comment here..."},
+        });</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1"><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://octodex.github.com/images/mummytocat.gif" alt="小七"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">小七</p><p class="is-size-6 is-block">你就学吧，总能学会的</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>Beijing, China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">19</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">11</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">10</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/JsZero" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile is-multiline"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/JsZero"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="X" href="https://x.com"><i class="fab fa-twitter"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/"><i class="fas fa-rss"></i></a></div></div></div><div class="card widget" data-type="categories"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile" href="/categories/Database/"><span class="level-start"><span class="level-item">Database</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/"><span class="level-start"><span class="level-item">Interview</span></span><span class="level-end"><span class="level-item tag">11</span></span></a><ul><li><a class="level is-mobile" href="/categories/Interview/0-%E7%9F%A5%E8%AF%86%E6%8B%93%E6%89%91/"><span class="level-start"><span class="level-item">0.知识拓扑</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="level-start"><span class="level-item">分布式</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="level-start"><span class="level-item">操作系统</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="level-start"><span class="level-item">架构设计</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/"><span class="level-start"><span class="level-item">编程语言</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="level-start"><span class="level-item">项目回顾</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/"><span class="level-start"><span class="level-item">🍺 Code Interview</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li></ul></li><li><a class="level is-mobile" href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="level-start"><span class="level-item">分布式</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/"><span class="level-start"><span class="level-item">调度服务</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li></ul></div></div></div><div class="card widget" data-type="tags"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/Akka/"><span class="tag">Akka</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/CAP/"><span class="tag">CAP</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/DolphinScheduler/"><span class="tag">DolphinScheduler</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/MySQL/"><span class="tag">MySQL</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/leetcode/"><span class="tag">leetcode</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="tag">分布式</span><span class="tag">4</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%A4%9A%E7%BA%BF%E7%A8%8B/"><span class="tag">多线程</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="tag">操作系统</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="tag">架构设计</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="tag">项目回顾</span><span class="tag">1</span></a></div></div></div></div></div><div class="card widget" data-type="archives"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile" href="/archives/2025/05/"><span class="level-start"><span class="level-item">五月 2025</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/04/"><span class="level-start"><span class="level-item">四月 2025</span></span><span class="level-end"><span class="level-item tag">5</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/03/"><span class="level-start"><span class="level-item">三月 2025</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/02/"><span class="level-start"><span class="level-item">二月 2025</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/08/"><span class="level-start"><span class="level-item">八月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/07/"><span class="level-start"><span class="level-item">七月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2022/07/"><span class="level-start"><span class="level-item">七月 2022</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li></ul></div></div></div><div class="card widget" data-type="recent-posts"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-04T02:05:20.000Z">2025-05-04</time></p><p class="title"><a href="/2025/05/04/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%80%E8%87%B4%E6%80%A7/">分布式事务一致性</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-03T07:20:15.000Z">2025-05-03</time></p><p class="title"><a href="/2025/05/03/%E9%AB%98%E5%8F%AF%E7%94%A8%E5%92%8C%E7%A8%B3%E5%AE%9A%E6%80%A7/">高可用和稳定性</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-04-27T02:26:50.000Z">2025-04-27</time></p><p class="title"><a href="/2025/04/27/leetcode-45-%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8FII/">leetcode 45.跳跃游戏II</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-04-20T02:47:00.000Z">2025-04-20</time></p><p class="title"><a href="/2025/04/20/leetcode-31-%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8E%92%E5%88%97/">leetcode 31. 下一个排列</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-04-19T15:57:18.000Z">2025-04-19</time></p><p class="title"><a href="/2025/04/19/leetcode-33-%E5%9C%A8%E6%97%8B%E8%BD%AC%E6%8E%92%E5%BA%8F%E6%95%B0%E7%BB%84%E4%B8%AD%E6%90%9C%E7%B4%A2/">leetcode 33.在旋转排序数组中搜索</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article></div></div><div class="column-right-shadow is-hidden-widescreen is-sticky"></div></div><div class="column column-right is-4-tablet is-4-desktop is-3-widescreen is-hidden-touch is-hidden-desktop-only order-3 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#多副本"><span class="level-left"><span class="level-item">1</span><span class="level-item">多副本</span></span></a></li><li><a class="level is-mobile" href="#隔离、限流、熔断和降级"><span class="level-left"><span class="level-item">2</span><span class="level-item">隔离、限流、熔断和降级</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#隔离"><span class="level-left"><span class="level-item">2.1</span><span class="level-item">隔离</span></span></a></li><li><a class="level is-mobile" href="#限流"><span class="level-left"><span class="level-item">2.2</span><span class="level-item">限流</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#方式"><span class="level-left"><span class="level-item">2.2.1</span><span class="level-item">方式</span></span></a></li><li><a class="level is-mobile" href="#限流算法"><span class="level-left"><span class="level-item">2.2.2</span><span class="level-item">限流算法</span></span></a></li></ul></li><li><a class="level is-mobile" href="#熔断"><span class="level-left"><span class="level-item">2.3</span><span class="level-item">熔断</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#根据请求失败率做熔断"><span class="level-left"><span class="level-item">2.3.1</span><span class="level-item">根据请求失败率做熔断</span></span></a></li><li><a class="level is-mobile" href="#根据请求响应时间做熔断"><span class="level-left"><span class="level-item">2.3.2</span><span class="level-item">根据请求响应时间做熔断</span></span></a></li></ul></li><li><a class="level is-mobile" href="#降级"><span class="level-left"><span class="level-item">2.4</span><span class="level-item">降级</span></span></a></li></ul></li></ul></div></div><style>#toc .menu-list > li > a.is-active + .menu-list { display: block; }#toc .menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a><p class="is-size-7"><span>&copy; 2025 jszero</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>
