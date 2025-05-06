@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>Redis原理和实践 - braoqq&#039;s blog</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="braoqq&#039;s blog"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="braoqq&#039;s blog"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="数据结构 整体组织形式 全局哈希表，每个哈希桶存储键值对，值存储的是指向实际元素的指针。redis采用链地址法（拉链法）解决哈希冲突，当链表长度过长时查询速度会变慢，所以链表长度过长时需要rehash，增加哈希桶数量  rehash过程：  使用两个全局哈希表实现   1. 给哈希表2分配更大的空间，比如哈希表1的两倍  2. 把哈希表1的数据重新映射拷贝到哈希表2  3. 释放哈希表1的空间"><meta property="og:type" content="blog"><meta property="og:title" content="Redis原理和实践"><meta property="og:url" content="https://jszero.github.io/2025/05/06/Redis%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/"><meta property="og:site_name" content="braoqq&#039;s blog"><meta property="og:description" content="数据结构 整体组织形式 全局哈希表，每个哈希桶存储键值对，值存储的是指向实际元素的指针。redis采用链地址法（拉链法）解决哈希冲突，当链表长度过长时查询速度会变慢，所以链表长度过长时需要rehash，增加哈希桶数量  rehash过程：  使用两个全局哈希表实现   1. 给哈希表2分配更大的空间，比如哈希表1的两倍  2. 把哈希表1的数据重新映射拷贝到哈希表2  3. 释放哈希表1的空间"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://jszero.github.io/img/og_image.png"><meta property="article:published_time" content="2025-05-06T13:29:48.000Z"><meta property="article:modified_time" content="2025-05-06T15:05:45.591Z"><meta property="article:author" content="jszero"><meta property="article:tag" content="中间件"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/img/og_image.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://jszero.github.io/2025/05/06/Redis%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/"},"headline":"Redis原理和实践","image":["https://jszero.github.io/img/og_image.png"],"datePublished":"2025-05-06T13:29:48.000Z","dateModified":"2025-05-06T15:05:45.591Z","author":{"@type":"Person","name":"jszero"},"publisher":{"@type":"Organization","name":"braoqq's blog","logo":{"@type":"ImageObject","url":"https://jszero.github.io/img/logo2.svg"}},"description":"数据结构 整体组织形式 全局哈希表，每个哈希桶存储键值对，值存储的是指向实际元素的指针。redis采用链地址法（拉链法）解决哈希冲突，当链表长度过长时查询速度会变慢，所以链表长度过长时需要rehash，增加哈希桶数量  rehash过程：  使用两个全局哈希表实现   1. 给哈希表2分配更大的空间，比如哈希表1的两倍  2. 把哈希表1的数据重新映射拷贝到哈希表2  3. 释放哈希表1的空间"}</script><link rel="canonical" href="https://jszero.github.io/2025/05/06/Redis%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/idea.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><script src="https://www.googletagmanager.com/gtag/js?id=G-78QW9ZHBDP" async></script><script>window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+    
+        gtag('config', 'G-78QW9ZHBDP');</script><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-3-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">主页</a><a class="navbar-item" href="/archives">时间轴</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/about">关于</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-6-widescreen"><div class="card"><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2025-05-06T13:29:48.000Z" title="5/6/2025, 9:29:48 PM">2025-05-06</time>发表</span><span class="level-item"><time dateTime="2025-05-06T15:05:45.591Z" title="5/6/2025, 11:05:45 PM">2025-05-06</time>更新</span><span class="level-item"><a class="link-muted" href="/categories/Interview/">Interview</a><span> / </span><a class="link-muted" href="/categories/Interview/%E4%B8%AD%E9%97%B4%E4%BB%B6/">中间件</a></span><span class="level-item">20 分钟读完 (大约3050个字)</span></div></div><h1 class="title is-3 is-size-4-mobile">Redis原理和实践</h1><div class="content"><h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><h3 id="整体组织形式"><a href="#整体组织形式" class="headerlink" title="整体组织形式"></a>整体组织形式</h3><p>全局哈希表，每个哈希桶存储键值对，值存储的是指向实际元素的指针。redis采用链地址法（拉链法）解决哈希冲突，当链表长度过长时查询速度会变慢，所以链表长度过长时需要rehash，增加哈希桶数量</p>
+<p>rehash过程：</p>
+<p>使用两个全局哈希表实现</p>
+<ol>
+<li>给哈希表2分配更大的空间，比如哈希表1的两倍</li>
+<li>把哈希表1的数据重新映射拷贝到哈希表2</li>
+<li>释放哈希表1的空间</li>
+</ol>
+<p><strong>渐进式rehash</strong>：</p>
+<p>时机：负载因子（哈希表已保存的节点数量&#x2F;哈希表大小）大于1且没有进行bgsave或bgrewiteaof时。或者负载因子大于5时</p>
+<p>原因：第2步涉及大量数据拷贝，如果一次性把哈希表1的数据迁移完，会造成Redis线程阻塞无法响应其他请求</p>
+<p>方法：在第2步操作时，Redis仍然接受请求，每处理一个请求时，从哈希表1的第一个索引位置开始顺带着将索引位置上的所有entries拷贝到哈希表2中，这样把一次性大量拷贝的开销分摊到多次处理请求的过程中。在渐进式rehash进行期间，哈希表元素的删除、查找、更新等操作都会在这两个哈希表进行。新增kv的时候会被保存到哈希表2中，哈希表1不再进行添加动作</p>
+<h3 id="元素数据结构"><a href="#元素数据结构" class="headerlink" title="元素数据结构"></a>元素数据结构</h3><ul>
+<li>String<ul>
+<li>底层数据结构： 简单动态字符串 SDS</li>
+</ul>
+</li>
+<li>List<ul>
+<li>底层数据结构：双向链表（3.2以后已经废弃）、压缩列表（3.2以后已经废弃）；quicklist</li>
+</ul>
+</li>
+<li>Hash<ul>
+<li>底层数据结构：压缩列表（后面换成listpack）、哈希表</li>
+</ul>
+</li>
+<li>Sorted Set<ul>
+<li>底层数据结构：压缩列表（后面换成listpack）、跳表</li>
+</ul>
+</li>
+<li>Set<ul>
+<li>底层数据结构：哈希表、整数数组</li>
+</ul>
+</li>
+</ul>
+<p>数据结构介绍</p>
+<p>**简单动态字符串(SDS)**：二进制存储，记录了长度，获取长度的时间复杂度为O(1)，不会发生缓冲区溢出，节省内存空间</p>
+<p><strong>压缩列表</strong>：类似数组，表头多了zlbytes、ztail、zlen是那个字段，分别表示列表长度、列表尾偏移量和列表中entry个数，表尾多了个zlend字段表示列表结束。定位第一个和最后一个元素可以通过表头字段确定，时间复杂度O(1)，查找其他元素时间复杂度O(n)</p>
+<p><strong>跳表</strong>：在链表基础上增加了多级索引，通过索引位置的跳转实现快速定位元素。时间复杂度O(logN)</p>
+<p>压缩列表的缺陷是，新增某个元素或修改某个元素时，如果空间不不够需要重新分配，如果插入对象较大，后续元素结构都需要变更</p>
+<blockquote>
+<p>Q：为什么不用平衡树、红黑树或者B+树？<br>A：平衡树和红黑树需要在加入删除元素之后调整树结构，需要额外的成本；B+树主要解决磁盘IO问题，内存随机读写效率很高</p>
+</blockquote>
+<h2 id="线程模型"><a href="#线程模型" class="headerlink" title="线程模型"></a>线程模型</h2><p>单线程处理，基于epoll的多路复用，可以同时监听多个套接字</p>
+<p>Q：Redis操作为什么这么快？</p>
+<p>A：如下</p>
+<ul>
+<li>纯内存存储，读写微妙级</li>
+<li>单线程+非阻塞I&#x2F;O，基于epoll的Reactor模式，避免多线程切换和锁竞争，高并发下性能问题</li>
+<li>高效数据结构</li>
+<li>持久化机制异步进行，不阻塞住线程</li>
+<li>网络开销小，RESP协议，序列化&#x2F;反序列化开销小，支持pipeline操作</li>
+</ul>
+<p>TODO：redis 6.0之后为什么引入多线程</p>
+<h2 id="持久化"><a href="#持久化" class="headerlink" title="持久化"></a>持久化</h2><h3 id="AOF"><a href="#AOF" class="headerlink" title="AOF"></a>AOF</h3><p>Append Only File，写后日志，先执行命令写数据再记录日志（由主线程操作）。Redis为避免额外检查开销，向AOF日志中记录日志时不会做语法检查，所以是写后日志，保证写入的都是正确的命令。</p>
+<p>AOF模式下面临的挑战：</p>
+<ol>
+<li>执行完命令写入日志之前宕机，数据会丢掉</li>
+<li>日志写入不会阻塞当前操作，但是会阻塞下一个操作</li>
+</ol>
+<p><strong>写回策略</strong></p>
+<ul>
+<li>Always：同步写回，每个写命令执行完，立马同步将日志写回磁盘</li>
+<li>Everysec：每秒写回，每个写命令执行完，只是先把日志孩子写到AOF文件的内存缓冲区，每隔1秒将缓冲区刷回磁盘</li>
+<li>No：操作系统控制写回，每个写命令执行完，只是先把日志孩子写到AOF文件的内存缓冲区，由操作系统决定何时将缓冲区刷回磁盘</li>
+</ul>
+<p>越往下性能越好，宕机时丢数据越严重</p>
+<p><strong>AOF重写</strong></p>
+<p>原因：每条命令都记录会导致AOF文件很大，恢复也会很慢，所以需要对一个key的多个操作合并，保证最后一次操作后的状态就可以了</p>
+<p>方法：fork子进程，合并重写AOF文件。主线程双写AOF缓冲，AOF重写缓冲，这样切换AOF文件时，AOF重写缓冲中包含了重写期间的所有操作，不会丢失变更</p>
+<h3 id="RDB"><a href="#RDB" class="headerlink" title="RDB"></a>RDB</h3><p>内存快照，将内存中的数据在某一刻的状态记录在文件中，用于恢复</p>
+<p>生成RDB文件的两个命令</p>
+<ul>
+<li>save：在主线程中执行，会导致阻塞</li>
+<li>bgsave：创建子进程用于写入RDB文件，避免主线程阻塞（默认配置）</li>
+</ul>
+<p><strong>bgsave如何保证不阻塞读写操作</strong></p>
+<p>不阻塞读：bgsave的fork子进程，因而主线程不阻塞，可以继续处理读请求</p>
+<p>不阻塞写：写时复制技术（COW，Copy-On-Write），Fork出的子进程可以共享主进程的所有内存数据，主进程在修改某份数据时会产生新的副本进行修改。因此bgsave子进程可以将原本的数据尽数写入RDB文件。这样主进程仍然可以修改数据，不阻塞</p>
+<p>Q：bgsave频率设置可以高一些吗？</p>
+<p>A：不能太频繁，1、会占用很多磁盘IO；2、fork动作会阻塞主线程</p>
+<h3 id="AOF-amp-RDB混合"><a href="#AOF-amp-RDB混合" class="headerlink" title="AOF&amp;RDB混合"></a>AOF&amp;RDB混合</h3><p>RDB文件恢复快速，但是两次快照期间的数据会丢失</p>
+<p>AOF简单数据丢失概率小，但是需要顺序重新执行所有命令</p>
+<p>AOF&amp;RDB混合，RDB以一定的频率执行，在两次RDB之间用AOF记录所有命令操作，这样丢失概率低的同时恢复也很快</p>
+<h2 id="网络框架"><a href="#网络框架" class="headerlink" title="网络框架"></a>网络框架</h2><h2 id="主从复制"><a href="#主从复制" class="headerlink" title="主从复制"></a>主从复制</h2><p>三种模式：全量复制、基于长连接的命令传播、增量复制</p>
+<p>redis的模式是主节点负责读写，从节点负责读</p>
+<p><strong>首次同步（使用全量复制）</strong></p>
+<ol>
+<li>从库发送psync命令告知主库即将进行同步，主库回复FULLRESYNC命令告诉从库要进行同步，告知runnID和复制offset</li>
+<li>主库将所有数据同步给从库，发送RDB文件，从库进行RDB文件加载</li>
+<li>主库将第2阶段中新到的写命令发送给从库，补全变更</li>
+</ol>
+<p>“主-从-从”及联模式可以减少主库fork子进程进行bgsave的压力</p>
+<p><strong>长连接命令传播</strong></p>
+<p>复用首次同步长连接进行命令的同步</p>
+<p><strong>主从库网络断连</strong></p>
+<p>2.8之前断连需要重新全量复制，2.8之后可以进行增量复制继续同步</p>
+<p>写入replication_buffer的同时写入repl_backlog_buffer环形缓冲，只同步从库offset和主库offert之间的数据</p>
+<h2 id="哨兵机制"><a href="#哨兵机制" class="headerlink" title="哨兵机制"></a>哨兵机制</h2><p>哨兵进程使用PING命令检测自己和主从库的连接情况，用来判断实例的状态。</p>
+<p><strong>主观下线</strong>：如果发现对主库或从库的PING超时了，可以将其标记为主观下线。</p>
+<p><strong>客观下线</strong>：对主库的主动下线标记不能直接开启主从切换，存在网络波动的可能，需要哨兵集群中大于等于n+1&#x2F;2的实例判定主库为主观下线，主库才能标记为客观下线，进行主从切换的流程</p>
+<p><strong>升为主库的从库选择</strong></p>
+<p>首先需要满足主从库断连的最大超时时间，发生次数不超过10次，即网络良好的从库才能被选中</p>
+<p>其次应该遵循以下轮次进行选择</p>
+<ol>
+<li>库优先级高的</li>
+<li>从库复制进度快的</li>
+<li>从库ID号小的</li>
+</ol>
+<p><strong>哨兵集群的建立</strong></p>
+<p>基于pub&#x2F;sub机制在主库上同一个频道发布消息，建立连接，形成哨兵集群。通过info命令获取从库连接信息，和从库建立连接并监控。</p>
+<h2 id="数据分片"><a href="#数据分片" class="headerlink" title="数据分片"></a>数据分片</h2><p>Redis-Cluster 按照slot划分</p>
+<h2 id="缓存一致性"><a href="#缓存一致性" class="headerlink" title="缓存一致性"></a>缓存一致性</h2><ul>
+<li>Cache-Aside 旁路缓存<ul>
+<li>方式：缓存位于一边，应用程序直接与缓存和数据库交互。读缓存，不存在时从数据库读取。写数据库删缓存</li>
+<li>Q&amp;A：<ul>
+<li><p>Q：为什么是删除而不是更新？</p>
+<p>  A：删除是一个最终一致性的行为，更新不是</p>
+</li>
+<li><p>Q：写数据时为什么不是先删缓存再更新数据库？在这种方案上有进一步解决办法吗？</p>
+<p>  A：因为写的同时可能有读请求，读请求可能会把未更新的旧数据又写回来。有的，写的流程改为：删缓存→更新数据库→sleep→删缓存（延迟双删）</p>
+</li>
+<li><p>Q：读写并行时，读到数据库旧数据，写数据库新数据，写删除缓存数据，读更新缓存为旧的数据怎么办？</p>
+<p>  A：两种方式可选，1、消息队列异步重试；2、订阅binlog、再操作缓存</p>
+</li>
+<li><p>Q：对缓存命中率要求比较高，更新数据库</p>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Read-Through<ul>
+<li>方式：缓存与数据库保持一致，当缓存未命中时，它会从数据库中加载丢失的数据，填充缓存并将其返回给应用程序</li>
+<li>与Cache-Aside的区别：<ul>
+<li>Cache-Aside中，应用程序负责从数据库获取数据并填充缓存，但是在Read-Through中，这个逻辑通常由组件库或独立缓存提供支持</li>
+<li>与Cache-Aside不同，Read-Through中的数据模型不能与数据库不同</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Write-Through<ul>
+<li>方式：数据首先写入缓存，然后写入数据库。缓存与数据库串联，写入总是通过缓存到主数据库。这种模式本身没有太大的作用，甚至还会引入额外的写入延迟，因为数据总是先写入缓存，然后写入数据库。但是在与Read-Through配合使用之后，就可以获得数据一致性的保证</li>
+</ul>
+</li>
+<li>Write-Around<ul>
+<li>方式：数据直接写入数据库，只有读取的数据才能进入缓存。可以结合Read-Through使用，在读频率较低的场景下性能较好</li>
+</ul>
+</li>
+<li>Write-Back(Write-Behind)<ul>
+<li>方式：应用程序将数据写入缓存，写入后立即确认，并在延迟一段时间后将数据写回数据库</li>
+</ul>
+</li>
+</ul>
+<p>TODO 本地缓存和分布式缓存区别？多级缓存？应用场景？</p>
+</div><div class="article-licensing box"><div class="licensing-title"><p>Redis原理和实践</p><p><a href="https://jszero.github.io/2025/05/06/Redis原理和实践/">https://jszero.github.io/2025/05/06/Redis原理和实践/</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><p>jszero</p></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2025-05-06</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2025-05-06</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icons" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="icon fab fa-creative-commons"></i></a><a class="icons" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="icon fab fa-creative-commons-by"></i></a><a class="icons" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="icon fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="article-tags is-size-7 mb-4"><span class="mr-2">#</span><a class="link-muted mr-2" rel="tag" href="/tags/%E4%B8%AD%E9%97%B4%E4%BB%B6/">中间件</a></div><div class="a2a_kit a2a_kit_size_32 a2a_default_style"><a class="a2a_dd" target="_blank" rel="noopener" href="https://www.addtoany.com/share"></a><a class="a2a_button_twitter"></a><a class="a2a_button_wechat"></a><a class="a2a_button_sina_weibo"></a><a class="a2a_button_email"></a></div><script src="https://static.addtoany.com/menu/page.js" defer></script></article></div><!--!--><nav class="post-navigation mt-4 level is-mobile"><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2025/05/04/%E9%AB%98%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98/"><span class="level-item">高并发问题</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><div class="card"><div class="card-content"><h3 class="title is-5">评论</h3><div class="content" id="waline-thread"></div><script src="https://cdn.jsdelivr.net/npm/@waline/client@1.5.4/dist/Waline.min.js"></script><script>Waline({
+            el: '#waline-thread',
+            serverURL: "https://blog.comment.bravoqq.tech",
+            path: window.location.pathname,
+            lang: "zh-CN",
+            visitor: false,
+            emoji: ["//unpkg.com/@waline/emojis@1.0.1/weibo"],
+            dark: "auto",
+            meta: ["nick","mail","link"],
+            requiredMeta: [],
+            login: "enable",
+            
+            pageSize: 10,
+            
+            
+            math: false,
+            copyright: true,
+            locale: {"placeholder":"Comment here..."},
+        });</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1"><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://octodex.github.com/images/mummytocat.gif" alt="小七"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">小七</p><p class="is-size-6 is-block">你就学吧，总能学会的</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>Beijing, China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">20</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">11</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">10</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/JsZero" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile is-multiline"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/JsZero"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="X" href="https://x.com"><i class="fab fa-twitter"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/"><i class="fas fa-rss"></i></a></div></div></div><div class="card widget" data-type="categories"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile" href="/categories/Database/"><span class="level-start"><span class="level-item">Database</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/"><span class="level-start"><span class="level-item">Interview</span></span><span class="level-end"><span class="level-item tag">12</span></span></a><ul><li><a class="level is-mobile" href="/categories/Interview/0-%E7%9F%A5%E8%AF%86%E6%8B%93%E6%89%91/"><span class="level-start"><span class="level-item">0.知识拓扑</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E4%B8%AD%E9%97%B4%E4%BB%B6/"><span class="level-start"><span class="level-item">中间件</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="level-start"><span class="level-item">操作系统</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="level-start"><span class="level-item">架构设计</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/"><span class="level-start"><span class="level-item">编程语言</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="level-start"><span class="level-item">项目回顾</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/"><span class="level-start"><span class="level-item">🍺 Code Interview</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li></ul></li><li><a class="level is-mobile" href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="level-start"><span class="level-item">分布式</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/"><span class="level-start"><span class="level-item">调度服务</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li></ul></div></div></div><div class="card widget" data-type="tags"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/Akka/"><span class="tag">Akka</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/DolphinScheduler/"><span class="tag">DolphinScheduler</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/MySQL/"><span class="tag">MySQL</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/leetcode/"><span class="tag">leetcode</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E4%B8%AD%E9%97%B4%E4%BB%B6/"><span class="tag">中间件</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="tag">分布式</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%A4%9A%E7%BA%BF%E7%A8%8B/"><span class="tag">多线程</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="tag">操作系统</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="tag">架构设计</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="tag">项目回顾</span><span class="tag">1</span></a></div></div></div></div></div><div class="card widget" data-type="archives"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile" href="/archives/2025/05/"><span class="level-start"><span class="level-item">五月 2025</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/04/"><span class="level-start"><span class="level-item">四月 2025</span></span><span class="level-end"><span class="level-item tag">5</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/03/"><span class="level-start"><span class="level-item">三月 2025</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/02/"><span class="level-start"><span class="level-item">二月 2025</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/08/"><span class="level-start"><span class="level-item">八月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/07/"><span class="level-start"><span class="level-item">七月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2022/07/"><span class="level-start"><span class="level-item">七月 2022</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li></ul></div></div></div><div class="card widget" data-type="recent-posts"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-06T13:29:48.000Z">2025-05-06</time></p><p class="title"><a href="/2025/05/06/Redis%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/">Redis原理和实践</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E4%B8%AD%E9%97%B4%E4%BB%B6/">中间件</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-04T08:45:20.000Z">2025-05-04</time></p><p class="title"><a href="/2025/05/04/%E9%AB%98%E5%B9%B6%E5%8F%91%E9%97%AE%E9%A2%98/">高并发问题</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-04T02:05:20.000Z">2025-05-04</time></p><p class="title"><a href="/2025/05/04/%E5%88%86%E5%B8%83%E5%BC%8F%E4%BA%8B%E5%8A%A1%E4%B8%80%E8%87%B4%E6%80%A7/">分布式事务一致性</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-03T07:20:15.000Z">2025-05-03</time></p><p class="title"><a href="/2025/05/03/%E9%AB%98%E5%8F%AF%E7%94%A8%E5%92%8C%E7%A8%B3%E5%AE%9A%E6%80%A7/">高可用和稳定性</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/">架构设计</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-04-27T02:26:50.000Z">2025-04-27</time></p><p class="title"><a href="/2025/04/27/leetcode-45-%E8%B7%B3%E8%B7%83%E6%B8%B8%E6%88%8FII/">leetcode 45.跳跃游戏II</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article></div></div><div class="column-right-shadow is-hidden-widescreen is-sticky"></div></div><div class="column column-right is-4-tablet is-4-desktop is-3-widescreen is-hidden-touch is-hidden-desktop-only order-3 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#数据结构"><span class="level-left"><span class="level-item">1</span><span class="level-item">数据结构</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#整体组织形式"><span class="level-left"><span class="level-item">1.1</span><span class="level-item">整体组织形式</span></span></a></li><li><a class="level is-mobile" href="#元素数据结构"><span class="level-left"><span class="level-item">1.2</span><span class="level-item">元素数据结构</span></span></a></li></ul></li><li><a class="level is-mobile" href="#线程模型"><span class="level-left"><span class="level-item">2</span><span class="level-item">线程模型</span></span></a></li><li><a class="level is-mobile" href="#持久化"><span class="level-left"><span class="level-item">3</span><span class="level-item">持久化</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#AOF"><span class="level-left"><span class="level-item">3.1</span><span class="level-item">AOF</span></span></a></li><li><a class="level is-mobile" href="#RDB"><span class="level-left"><span class="level-item">3.2</span><span class="level-item">RDB</span></span></a></li><li><a class="level is-mobile" href="#AOF-amp-RDB混合"><span class="level-left"><span class="level-item">3.3</span><span class="level-item">AOF&amp;RDB混合</span></span></a></li></ul></li><li><a class="level is-mobile" href="#网络框架"><span class="level-left"><span class="level-item">4</span><span class="level-item">网络框架</span></span></a></li><li><a class="level is-mobile" href="#主从复制"><span class="level-left"><span class="level-item">5</span><span class="level-item">主从复制</span></span></a></li><li><a class="level is-mobile" href="#哨兵机制"><span class="level-left"><span class="level-item">6</span><span class="level-item">哨兵机制</span></span></a></li><li><a class="level is-mobile" href="#数据分片"><span class="level-left"><span class="level-item">7</span><span class="level-item">数据分片</span></span></a></li><li><a class="level is-mobile" href="#缓存一致性"><span class="level-left"><span class="level-item">8</span><span class="level-item">缓存一致性</span></span></a></li></ul></div></div><style>#toc .menu-list > li > a.is-active + .menu-list { display: block; }#toc .menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a><p class="is-size-7"><span>&copy; 2025 jszero</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>
