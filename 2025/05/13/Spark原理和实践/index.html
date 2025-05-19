@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>Spark原理和实践 - braoqq&#039;s blog</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="braoqq&#039;s blog"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="braoqq&#039;s blog"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="Spark概念 Spark 是一个基于内存的大数据分布式计算框架 RDD： Partition： Job： Task： Driver： Executor：  Spark为什么比MapReduce执行更快  * DAG 执行模型：Spark 将整个计算构建成一个有向无环图（DAG），可对多步算子进行统一调度和优化；MapReduce 则强制每个 Job 都是单一的 Map→Shuffle→Reduc"><meta property="og:type" content="blog"><meta property="og:title" content="Spark原理和实践"><meta property="og:url" content="https://jszero.github.io/2025/05/13/Spark%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/"><meta property="og:site_name" content="braoqq&#039;s blog"><meta property="og:description" content="Spark概念 Spark 是一个基于内存的大数据分布式计算框架 RDD： Partition： Job： Task： Driver： Executor：  Spark为什么比MapReduce执行更快  * DAG 执行模型：Spark 将整个计算构建成一个有向无环图（DAG），可对多步算子进行统一调度和优化；MapReduce 则强制每个 Job 都是单一的 Map→Shuffle→Reduc"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://jszero.github.io/img/og_image.png"><meta property="article:published_time" content="2025-05-13T13:50:45.000Z"><meta property="article:modified_time" content="2025-05-13T16:23:06.433Z"><meta property="article:author" content="jszero"><meta property="article:tag" content="Interview"><meta property="article:tag" content="大数据"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/img/og_image.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://jszero.github.io/2025/05/13/Spark%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/"},"headline":"Spark原理和实践","image":["https://jszero.github.io/img/og_image.png"],"datePublished":"2025-05-13T13:50:45.000Z","dateModified":"2025-05-13T16:23:06.433Z","author":{"@type":"Person","name":"jszero"},"publisher":{"@type":"Organization","name":"braoqq's blog","logo":{"@type":"ImageObject","url":"https://jszero.github.io/img/logo2.svg"}},"description":"Spark概念 Spark 是一个基于内存的大数据分布式计算框架 RDD： Partition： Job： Task： Driver： Executor：  Spark为什么比MapReduce执行更快  * DAG 执行模型：Spark 将整个计算构建成一个有向无环图（DAG），可对多步算子进行统一调度和优化；MapReduce 则强制每个 Job 都是单一的 Map→Shuffle→Reduc"}</script><link rel="canonical" href="https://jszero.github.io/2025/05/13/Spark%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/idea.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><script src="https://www.googletagmanager.com/gtag/js?id=G-78QW9ZHBDP" async></script><script>window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+    
+        gtag('config', 'G-78QW9ZHBDP');</script><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-3-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">主页</a><a class="navbar-item" href="/archives">时间轴</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/about">关于</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-6-widescreen"><div class="card"><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2025-05-13T13:50:45.000Z" title="5/13/2025, 9:50:45 PM">2025-05-13</time>发表</span><span class="level-item"><time dateTime="2025-05-13T16:23:06.433Z" title="5/14/2025, 12:23:06 AM">2025-05-14</time>更新</span><span class="level-item"><a class="link-muted" href="/categories/Interview/">Interview</a><span> / </span><a class="link-muted" href="/categories/Interview/%E5%A4%A7%E6%95%B0%E6%8D%AE/">大数据</a></span><span class="level-item">17 分钟读完 (大约2623个字)</span></div></div><h1 class="title is-3 is-size-4-mobile">Spark原理和实践</h1><div class="content"><h1 id="Spark概念"><a href="#Spark概念" class="headerlink" title="Spark概念"></a>Spark概念</h1><p>Spark 是一个基于内存的大数据分布式计算框架<br>RDD：<br>Partition：<br>Job：<br>Task：<br>Driver：<br>Executor：</p>
+<h1 id="Spark为什么比MapReduce执行更快"><a href="#Spark为什么比MapReduce执行更快" class="headerlink" title="Spark为什么比MapReduce执行更快"></a>Spark为什么比MapReduce执行更快</h1><ul>
+<li><strong>DAG 执行模型</strong>：Spark 将整个计算构建成一个有向无环图（DAG），可对多步算子进行统一调度和优化；MapReduce 则强制每个 Job 都是单一的 Map→Shuffle→Reduce，阶段之间无融合</li>
+<li><strong>算子融合（Pipelining）</strong>：对多个窄依赖算子（如 map、filter）进行链式执行，在同一个 Task 中完成，不产生中间写盘；MapReduce 每步都要落盘并重新调度</li>
+<li><strong>内存优先 + 本地磁盘优化</strong>：Spark 缓存中间数据到内存（或本地临时磁盘），shuffle 时只在必要时 spill；MapReduce 则把中间结果全部写到 HDFS，I&#x2F;O 成本高</li>
+</ul>
+<h1 id="RDD、DataFrame-和-Dataset"><a href="#RDD、DataFrame-和-Dataset" class="headerlink" title="RDD、DataFrame 和 Dataset"></a>RDD、DataFrame 和 Dataset</h1><p><strong>RDD</strong>：弹性分布式数据集，是Spark中最基本的数据处理模型。代码中是一个抽象类，它代表了一个弹性的、不可变的、可分区、里面的元素可进行计算的集合。RDD封装了计算逻辑，并不保存数据<br>    - 不可变<br>    - 分区化<br>    - 有容错机制（Lineage）<br>    - 惰性求值<br>    - 分布式计算<br><strong>DataFrame</strong>：结构化数据，类似关系型数据库表，支持 Catalyst 优化器，性能好但不类型安全<br><strong>Dataset</strong>：结合 RDD 的类型安全和 DataFrame 的性能优化，Scala 和 Java 支持较好。特别的，<code>DataFrame=DataSet[Row]</code></p>
+<h1 id="算子"><a href="#算子" class="headerlink" title="算子"></a>算子</h1><p><strong>Transformation</strong>：从现有的数据集创建一个新的数据集，返回一个新的 RDD 操作。Transformation都是惰性的，它们并不会立刻执行，只是记住了这些应用到 RDD 上的转换动作<br><strong>Action</strong>：触发在 RDD 上的计算，这些计算可以是向应用程序返回结果，也可以是向存储系统保存数据<br>常见的 Transformation 包括：map、mapVaules、filter、flatMap、mapPartitions、uoin、join、distinct、xxxByKey<br>常见的 Action 包括：count、collect、collectAsMap、first、reduce、fold、aggregate、saveAsTextFile</p>
+<h1 id="宽依赖-amp-窄依赖"><a href="#宽依赖-amp-窄依赖" class="headerlink" title="宽依赖 &amp; 窄依赖"></a>宽依赖 &amp; 窄依赖</h1><h1 id="广播变量-amp-累加器"><a href="#广播变量-amp-累加器" class="headerlink" title="广播变量 &amp; 累加器"></a>广播变量 &amp; 累加器</h1><h1 id="缓存-amp-checkpoint"><a href="#缓存-amp-checkpoint" class="headerlink" title="缓存 &amp; checkpoint"></a>缓存 &amp; checkpoint</h1><h1 id="数据本地化"><a href="#数据本地化" class="headerlink" title="数据本地化"></a>数据本地化</h1><h1 id="GROUP-BY、SORT-BY、DISTRIBUTE-BY、CLUSTER-BY-区别是什么？"><a href="#GROUP-BY、SORT-BY、DISTRIBUTE-BY、CLUSTER-BY-区别是什么？" class="headerlink" title="GROUP BY、SORT BY、DISTRIBUTE BY、CLUSTER BY 区别是什么？"></a>GROUP BY、SORT BY、DISTRIBUTE BY、CLUSTER BY 区别是什么？</h1><table>
+<thead>
+<tr>
+<th>语法</th>
+<th>用途</th>
+<th>是否 Shuffle</th>
+<th>是否排序</th>
+<th>分区行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GROUP BY</code></td>
+<td>分组聚合（如 sum、count）</td>
+<td>✅ 是</td>
+<td>❌ 否</td>
+<td>相同 key 会到同一分区</td>
+</tr>
+<tr>
+<td><code>SORT BY</code></td>
+<td>分区内排序（非全局）</td>
+<td>❌ 否</td>
+<td>✅ 是</td>
+<td>保持原分区</td>
+</tr>
+<tr>
+<td><code>DISTRIBUTE BY</code></td>
+<td>控制数据如何分区（打散数据）</td>
+<td>✅ 是</td>
+<td>❌ 否</td>
+<td>同 key 到同一分区</td>
+</tr>
+<tr>
+<td><code>CLUSTER BY</code></td>
+<td>等于SORT BY + DISTRIBUTE BY，排序写入、建索引、聚簇优化，如写入parquet</td>
+<td>✅ 是</td>
+<td>✅ 是</td>
+<td>等价于 DISTRIBUTE + SORT</td>
+</tr>
+</tbody></table>
+<h1 id="Spark-On-Yarn提交流程"><a href="#Spark-On-Yarn提交流程" class="headerlink" title="Spark On Yarn提交流程"></a>Spark On Yarn提交流程</h1><h1 id="Shuffle介绍"><a href="#Shuffle介绍" class="headerlink" title="Shuffle介绍"></a>Shuffle介绍</h1><h2 id="Hash-based-shuffle"><a href="#Hash-based-shuffle" class="headerlink" title="Hash-based shuffle"></a>Hash-based shuffle</h2><ol>
+<li>机制：<ul>
+<li><strong>普通运行机制</strong>：设下游stage的task数量为n，上游stage的shuffle write阶段<strong>每个map task，都会生成n个临时文件</strong>。下游shuffle read阶段每个task从上有的所有task所在节点，拉取自己所需要的临时文件，每次都拉取鱼自己buffer缓冲区相同大小的数据，然后通过内存中的Map数据结构进行聚合等操作。以此类推，直到最后所有数据都拉取处理完</li>
+<li><strong>优化后的运行机制</strong>：增加参数spark.shuffle.consolidateFiles参数，默认值为false。开启后会开启consolidate机制，每个并行度（core）会创建一个shuffleFileGroup，<strong>每个group会产生下游task数量的临时文件</strong>，在同一个executor的core上执行的task会复用临时文件，可以极大减少临时文件数量。shuffle read时根据共享临时文件中offset读取</li>
+</ul>
+</li>
+<li>总结：<ul>
+<li>优点：<ol>
+<li>可以省略不必要的排序开销</li>
+<li>避免了排序所需的内存开销</li>
+</ol>
+</li>
+<li>缺点：<ol>
+<li>生产的文件过多，会对文件系统造成压力</li>
+<li>大量的小文件的随机读写带来一定磁盘开销</li>
+<li>数据块写入时所需的缓存空间也会随之增加，对内存造成压力</li>
+<li>即使是consolidate机制，在reduce task数量过多的情况下，文件也很多</li>
+</ol>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="Sorted-based-shuffle"><a href="#Sorted-based-shuffle" class="headerlink" title="Sorted-based shuffle"></a>Sorted-based shuffle</h2><ol>
+<li>机制：<ul>
+<li><strong>普通运行机制</strong>：shuffle write的每个task将数据写入内存数据结构，数据结构中的数据量达到阈值（默认10000）之后，将数据排序写入磁盘临时文件，最后将一个task的所有spill溢写磁盘临时文件合并，<strong>每个map task写入一个磁盘和一个索引文件</strong>。排序是为了把所有属于同一个partition的数据放在一起，以便写入磁盘时合并连续数据段，shuffle read可以执行offfset拉取，不需要加载整个文件。</li>
+<li><strong>bypass运行机制</strong>：reduce任务数量比较少的情况，hash-based shuffle会比sorted-based shuffle效率更高。当满足如下条件时，会进行hash，根据hash值通过缓冲写入对应的磁盘文件，省去排序的过程，最后会对每个task产生的所有临时磁盘文件做合并，每个task生成一个磁盘文件，和一个索引文件<ol>
+<li>shuffle read task的数量小于阈值spark.shuffle.sort.bypassMergeThreshold</li>
+<li>使用的算子没有map-side的聚合行为，比如reduceByKey</li>
+</ol>
+</li>
+<li><strong>Tungsten Sorted运行机制</strong>：对sort的优化，排序的不是内容本身，是内容序列化之后的指针（元数据），基于序列化之后的二进制数据操作，没有了序列化和反序列化的过程，内存消耗降低。使用的是堆外内存操作，gc开销减少。使用T-S机制的前提比较苛刻，具体如下<ol>
+<li>shuffle依赖中不带聚合操作或者对输出进行排序的要求</li>
+<li>shuffle的序列化器支持序列化值的重定位（仅支持Kryo Serialized）</li>
+<li>shuffle过程中的输出分区个数少于16777216个</li>
+</ol>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="Remote-Shuffle"><a href="#Remote-Shuffle" class="headerlink" title="Remote Shuffle"></a>Remote Shuffle</h2><h3 id="Shuffle存在的问题"><a href="#Shuffle存在的问题" class="headerlink" title="Shuffle存在的问题"></a>Shuffle存在的问题</h3><ul>
+<li>磁盘随机读写严重：离线数据量增长，一定会增加分区数量来增大并发，因此shuffle文件会以mapper*reducer平方关系增加。单个shuffler文件大概是几k，几十k的样子。磁盘随机读写非常严重</li>
+<li>shuffle read负载不均衡：请求的多个container分布在同一台机器上时，reduce时会请求多次</li>
+<li>数据无备份：shuffle文件存储在mapper所在本地磁盘，磁盘故障或者宕机会导致无法读取</li>
+</ul>
+<h3 id="Remote-Shuffle-service"><a href="#Remote-Shuffle-service" class="headerlink" title="Remote Shuffle service"></a>Remote Shuffle service</h3><p><strong>RSS过程</strong>：</p>
+<ol>
+<li>mapper端数据不落盘，按照reducer划分，push到对应的rss内存中</li>
+<li>rss内存中merge不同mapper发过来的数据，写到分布式存储中</li>
+<li>reducer直接去分布式存储中读取已经merge好的shuffle数据<br><strong>优化点</strong>：</li>
+<li>减少随机读：按照reducer组织数据，每个文件只归属于一个reducer，reducer读取变成顺序读</li>
+<li>负载均衡：通过rss和hdfs来实现shuffle read负载均衡</li>
+<li>数据多备份：分布式存储shuffle文件多备份，提高可用性</li>
+</ol>
+<h2 id="Push-based-shuffle"><a href="#Push-based-shuffle" class="headerlink" title="Push-based shuffle"></a>Push-based shuffle</h2><p>sorted-based shuffle的增强。mapper端结束后主动将数据推送给reduce节点，避免reduce拉取。与rss的区别是，rss写的是外部存储，pss写的是reduce节点，交由reduce节点的ess来管理。但是shuffle数据推送过去之后，如果executor被回收或者宕机，那么数据会丢失不可用。任务规模越大、时间越长，发生executor丢失的概率越高，Push-based Shuffle风险越大，所以PSS更适合中等规模的任务。</p>
+<blockquote>
+<p>Q：什么是ess？External shuffle service<br>A：<br><strong>背景</strong>：1. 在动态资源申请机制下，executor被移除之后仍然需要保留其上运行的任务结果状态 2.对于shuffle而言，map task溢写的临时文件<br><strong>定义</strong>：运行在集群中每一个节点上的常驻进程，独立于Spark application和executor存在，开启这个服务之后，executor会从这个服务拉取shuffle文件，而不是从上游executor拉取。即executor终止之后，状态依然是可用的</p>
+</blockquote>
+<h2 id="不同类型shuffle对比"><a href="#不同类型shuffle对比" class="headerlink" title="不同类型shuffle对比"></a>不同类型shuffle对比</h2><table>
+<thead>
+<tr>
+<th>维度&#x2F;类型</th>
+<th><strong>Hash Shuffle</strong></th>
+<th><strong>Sort-based Shuffle</strong></th>
+<th><strong>Push-based Shuffle</strong> (Spark 3.1+)</th>
+<th><strong>Remote Shuffle</strong> (RSS、Uniffle 等)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>是否默认启用</td>
+<td>否（已废弃）</td>
+<td>✅ 是（Spark 默认 Shuffle 类型）</td>
+<td>否（需配置启用）</td>
+<td>否（需接入插件）</td>
+</tr>
+<tr>
+<td>数据写入方式</td>
+<td>每个下游 partition 写一个临时文件</td>
+<td>将所有输出排序后写一个文件 + 索引</td>
+<td>Map 端主动推送数据至 Reduce 端</td>
+<td>Map 端写入远程 Shuffle 服务</td>
+</tr>
+<tr>
+<td>文件数量</td>
+<td>多（Map端每个任务 × Reduce数）</td>
+<td>少（一个任务一个输出文件 + index）</td>
+<td>少（推到 Reduce 本地）</td>
+<td>可控，由服务端统一管理</td>
+</tr>
+<tr>
+<td>是否排序</td>
+<td>❌ 否</td>
+<td>✅ 是</td>
+<td>✅ 是（基于 Sort Shuffle）</td>
+<td>取决于服务配置（一般是支持排序的）</td>
+</tr>
+<tr>
+<td>性能表现</td>
+<td>较快但容易产生大量小文件</td>
+<td>稍慢但更稳定</td>
+<td>性能好，减少 Reduce 拉取等待</td>
+<td>性能稳定，容错强</td>
+</tr>
+<tr>
+<td>容错能力</td>
+<td>差，executor 丢失后数据丢</td>
+<td>差，executor 丢失后 Reduce 会失败</td>
+<td>较差（数据存在 Reduce 节点）</td>
+<td>✅ 强，数据在远程独立服务中</td>
+</tr>
+<tr>
+<td>是否支持动态资源释放</td>
+<td>❌ 否（数据存在 executor）</td>
+<td>❌ 否</td>
+<td>❌ 否（数据存在 Reduce 节点）</td>
+<td>✅ 支持（Executor 可动态释放）</td>
+</tr>
+<tr>
+<td>是否需要外部服务</td>
+<td>❌ 否</td>
+<td>❌ 否</td>
+<td>❌ 否</td>
+<td>✅ 是（部署 Shuffle Server）</td>
+</tr>
+<tr>
+<td>推荐使用场景</td>
+<td>旧版本 Spark，小任务</td>
+<td>✅ 默认通用型 Shuffle</td>
+<td>中等规模任务，想减少 Reduce 阶段等待</td>
+<td>大规模作业、Spark on K8s、动态资源分配场景</td>
+</tr>
+<tr>
+<td>是否支持 Combine</td>
+<td>✅ 是</td>
+<td>✅ 是</td>
+<td>✅ 是</td>
+<td>✅ 是（服务端支持）</td>
+</tr>
+<tr>
+<td>是否支持 Spark on K8s</td>
+<td>不推荐</td>
+<td>✅ 支持</td>
+<td>✅ 支持</td>
+<td>✅ 推荐</td>
+</tr>
+</tbody></table>
+</div><div class="article-licensing box"><div class="licensing-title"><p>Spark原理和实践</p><p><a href="https://jszero.github.io/2025/05/13/Spark原理和实践/">https://jszero.github.io/2025/05/13/Spark原理和实践/</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><p>jszero</p></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2025-05-13</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2025-05-14</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icons" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="icon fab fa-creative-commons"></i></a><a class="icons" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="icon fab fa-creative-commons-by"></i></a><a class="icons" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="icon fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="article-tags is-size-7 mb-4"><span class="mr-2">#</span><a class="link-muted mr-2" rel="tag" href="/tags/Interview/">Interview</a><a class="link-muted mr-2" rel="tag" href="/tags/%E5%A4%A7%E6%95%B0%E6%8D%AE/">大数据</a></div><div class="a2a_kit a2a_kit_size_32 a2a_default_style"><a class="a2a_dd" target="_blank" rel="noopener" href="https://www.addtoany.com/share"></a><a class="a2a_button_twitter"></a><a class="a2a_button_wechat"></a><a class="a2a_button_sina_weibo"></a><a class="a2a_button_email"></a></div><script src="https://static.addtoany.com/menu/page.js" defer></script></article></div><!--!--><nav class="post-navigation mt-4 level is-mobile"><div class="level-start"><a class="article-nav-prev level level-item link-muted" href="/2025/05/19/interview-record-0/"><i class="level-item fas fa-chevron-left"></i><span class="level-item">interview record 0</span></a></div><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2025/05/12/%E5%9B%9E%E6%BA%AF%E7%9B%B8%E5%85%B3%E9%A2%98%E7%9B%AE%E6%95%B4%E7%90%86/"><span class="level-item">回溯相关题目整理</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><div class="card"><div class="card-content"><h3 class="title is-5">评论</h3><div class="content" id="waline-thread"></div><script src="https://cdn.jsdelivr.net/npm/@waline/client@1.5.4/dist/Waline.min.js"></script><script>Waline({
+            el: '#waline-thread',
+            serverURL: "https://blog.comment.bravoqq.tech",
+            path: window.location.pathname,
+            lang: "zh-CN",
+            visitor: false,
+            emoji: ["//unpkg.com/@waline/emojis@1.0.1/weibo"],
+            dark: "auto",
+            meta: ["nick","mail","link"],
+            requiredMeta: [],
+            login: "enable",
+            
+            pageSize: 10,
+            
+            
+            math: false,
+            copyright: true,
+            locale: {"placeholder":"Comment here..."},
+        });</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1"><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://octodex.github.com/images/mummytocat.gif" alt="小七"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">小七</p><p class="is-size-6 is-block">你就学吧，总能学会的</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>Beijing, China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">26</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">12</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">13</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/JsZero" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile is-multiline"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/JsZero"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="X" href="https://x.com"><i class="fab fa-twitter"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/"><i class="fas fa-rss"></i></a></div></div></div><div class="card widget" data-type="categories"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile" href="/categories/Database/"><span class="level-start"><span class="level-item">Database</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/"><span class="level-start"><span class="level-item">Interview</span></span><span class="level-end"><span class="level-item tag">18</span></span></a><ul><li><a class="level is-mobile" href="/categories/Interview/0-%E7%9F%A5%E8%AF%86%E6%8B%93%E6%89%91/"><span class="level-start"><span class="level-item">0.知识拓扑</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E4%B8%AD%E9%97%B4%E4%BB%B6/"><span class="level-start"><span class="level-item">中间件</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E5%A4%A7%E6%95%B0%E6%8D%AE/"><span class="level-start"><span class="level-item">大数据</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="level-start"><span class="level-item">操作系统</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="level-start"><span class="level-item">架构设计</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/"><span class="level-start"><span class="level-item">编程语言</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="level-start"><span class="level-item">项目回顾</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/"><span class="level-start"><span class="level-item">🍺 Code Interview</span></span><span class="level-end"><span class="level-item tag">5</span></span></a></li></ul></li><li><a class="level is-mobile" href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="level-start"><span class="level-item">分布式</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/categories/%E8%B0%83%E5%BA%A6%E6%9C%8D%E5%8A%A1/"><span class="level-start"><span class="level-item">调度服务</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li></ul></div></div></div><div class="card widget" data-type="tags"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/Akka/"><span class="tag">Akka</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/Database/"><span class="tag">Database</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/Interview/"><span class="tag">Interview</span><span class="tag">4</span></a></div><div class="control"><a class="tags has-addons" href="/tags/MySQL/"><span class="tag">MySQL</span><span class="tag">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/leetcode/"><span class="tag">leetcode</span><span class="tag">4</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E4%B8%AD%E9%97%B4%E4%BB%B6/"><span class="tag">中间件</span><span class="tag">4</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/"><span class="tag">分布式</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%A4%9A%E7%BA%BF%E7%A8%8B/"><span class="tag">多线程</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%A4%A7%E6%95%B0%E6%8D%AE/"><span class="tag">大数据</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/"><span class="tag">操作系统</span><span class="tag">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/"><span class="tag">架构设计</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E8%B0%83%E5%BA%A6/"><span class="tag">调度</span><span class="tag">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E9%A1%B9%E7%9B%AE%E5%9B%9E%E9%A1%BE/"><span class="tag">项目回顾</span><span class="tag">1</span></a></div></div></div></div></div><div class="card widget" data-type="archives"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile" href="/archives/2025/05/"><span class="level-start"><span class="level-item">五月 2025</span></span><span class="level-end"><span class="level-item tag">9</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/04/"><span class="level-start"><span class="level-item">四月 2025</span></span><span class="level-end"><span class="level-item tag">5</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/03/"><span class="level-start"><span class="level-item">三月 2025</span></span><span class="level-end"><span class="level-item tag">4</span></span></a></li><li><a class="level is-mobile" href="/archives/2025/02/"><span class="level-start"><span class="level-item">二月 2025</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/08/"><span class="level-start"><span class="level-item">八月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2024/07/"><span class="level-start"><span class="level-item">七月 2024</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li><li><a class="level is-mobile" href="/archives/2022/07/"><span class="level-start"><span class="level-item">七月 2022</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li></ul></div></div></div><div class="card widget" data-type="recent-posts"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-19T14:43:40.000Z">2025-05-19</time></p><p class="title"><a href="/2025/05/19/interview-record-0/">interview record 0</a></p><p class="categories"><a href="/categories/Interview/">Interview</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-13T13:50:45.000Z">2025-05-13</time></p><p class="title"><a href="/2025/05/13/Spark%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/">Spark原理和实践</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E5%A4%A7%E6%95%B0%E6%8D%AE/">大数据</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-12T14:01:06.000Z">2025-05-12</time></p><p class="title"><a href="/2025/05/12/%E5%9B%9E%E6%BA%AF%E7%9B%B8%E5%85%B3%E9%A2%98%E7%9B%AE%E6%95%B4%E7%90%86/">回溯相关题目整理</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%F0%9F%8D%BA-Code-Interview/">🍺 Code Interview</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-07T14:37:32.000Z">2025-05-07</time></p><p class="title"><a href="/2025/05/07/MySQL%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/">MySQL原理和实践</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E4%B8%AD%E9%97%B4%E4%BB%B6/">中间件</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2025-05-06T15:07:43.000Z">2025-05-06</time></p><p class="title"><a href="/2025/05/06/Kafka%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E8%B7%B5/">Kafka原理和实践</a></p><p class="categories"><a href="/categories/Interview/">Interview</a> / <a href="/categories/Interview/%E4%B8%AD%E9%97%B4%E4%BB%B6/">中间件</a></p></div></article></div></div><div class="column-right-shadow is-hidden-widescreen is-sticky"></div></div><div class="column column-right is-4-tablet is-4-desktop is-3-widescreen is-hidden-touch is-hidden-desktop-only order-3 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#Spark概念"><span class="level-left"><span class="level-item">1</span><span class="level-item">Spark概念</span></span></a></li><li><a class="level is-mobile" href="#Spark为什么比MapReduce执行更快"><span class="level-left"><span class="level-item">2</span><span class="level-item">Spark为什么比MapReduce执行更快</span></span></a></li><li><a class="level is-mobile" href="#RDD、DataFrame-和-Dataset"><span class="level-left"><span class="level-item">3</span><span class="level-item">RDD、DataFrame 和 Dataset</span></span></a></li><li><a class="level is-mobile" href="#算子"><span class="level-left"><span class="level-item">4</span><span class="level-item">算子</span></span></a></li><li><a class="level is-mobile" href="#宽依赖-amp-窄依赖"><span class="level-left"><span class="level-item">5</span><span class="level-item">宽依赖 &amp; 窄依赖</span></span></a></li><li><a class="level is-mobile" href="#广播变量-amp-累加器"><span class="level-left"><span class="level-item">6</span><span class="level-item">广播变量 &amp; 累加器</span></span></a></li><li><a class="level is-mobile" href="#缓存-amp-checkpoint"><span class="level-left"><span class="level-item">7</span><span class="level-item">缓存 &amp; checkpoint</span></span></a></li><li><a class="level is-mobile" href="#数据本地化"><span class="level-left"><span class="level-item">8</span><span class="level-item">数据本地化</span></span></a></li><li><a class="level is-mobile" href="#GROUP-BY、SORT-BY、DISTRIBUTE-BY、CLUSTER-BY-区别是什么？"><span class="level-left"><span class="level-item">9</span><span class="level-item">GROUP BY、SORT BY、DISTRIBUTE BY、CLUSTER BY 区别是什么？</span></span></a></li><li><a class="level is-mobile" href="#Spark-On-Yarn提交流程"><span class="level-left"><span class="level-item">10</span><span class="level-item">Spark On Yarn提交流程</span></span></a></li><li><a class="level is-mobile" href="#Shuffle介绍"><span class="level-left"><span class="level-item">11</span><span class="level-item">Shuffle介绍</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#Hash-based-shuffle"><span class="level-left"><span class="level-item">11.1</span><span class="level-item">Hash-based shuffle</span></span></a></li><li><a class="level is-mobile" href="#Sorted-based-shuffle"><span class="level-left"><span class="level-item">11.2</span><span class="level-item">Sorted-based shuffle</span></span></a></li><li><a class="level is-mobile" href="#Remote-Shuffle"><span class="level-left"><span class="level-item">11.3</span><span class="level-item">Remote Shuffle</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#Shuffle存在的问题"><span class="level-left"><span class="level-item">11.3.1</span><span class="level-item">Shuffle存在的问题</span></span></a></li><li><a class="level is-mobile" href="#Remote-Shuffle-service"><span class="level-left"><span class="level-item">11.3.2</span><span class="level-item">Remote Shuffle service</span></span></a></li></ul></li><li><a class="level is-mobile" href="#Push-based-shuffle"><span class="level-left"><span class="level-item">11.4</span><span class="level-item">Push-based shuffle</span></span></a></li><li><a class="level is-mobile" href="#不同类型shuffle对比"><span class="level-left"><span class="level-item">11.5</span><span class="level-item">不同类型shuffle对比</span></span></a></li></ul></li></ul></div></div><style>#toc .menu-list > li > a.is-active + .menu-list { display: block; }#toc .menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo2.svg" alt="braoqq&#039;s blog" height="28"></a><p class="is-size-7"><span>&copy; 2025 jszero</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>
